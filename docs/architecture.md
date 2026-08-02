@@ -168,11 +168,68 @@ something other than the dev control panel.
 The dev panel disables itself while the script plays, so the two drivers
 never fight over the same agents.
 
-## 11. Recommended next milestone
+## 11. Phase 2, part 1: database and authentication — done
 
-The scripted stream proves the adapter boundary; it still runs entirely
-client-side with no persistence. The next real step is Phase 2 from the
-proposal: authentication, a saved `Business`/`Agent`/`Task` model in
-Postgres, and swapping `createLocalOfficeAdapter()` for one backed by
-actual API routes — at which point the scripted demo becomes a useful
-fixture for local development and tests rather than the only data source.
+### Local Postgres, not a hosted service
+
+This environment has no Docker and no external DB account was going to
+get created on the user's behalf, but it does have PostgreSQL 17
+installed natively (Windows service, already running). Rather than push
+for a hosted free-tier Postgres (Neon/Supabase), which would mean the
+user creating a third-party account, this build connects to that local
+instance through a dedicated least-privilege role:
+
+```sql
+CREATE ROLE capycorp_app WITH LOGIN PASSWORD '...' CREATEDB;
+CREATE DATABASE capycorp OWNER capycorp_app;
+```
+
+`CREATEDB` is only needed for `prisma migrate dev`'s shadow database (used
+to diff schema changes); the app itself never needs more than read/write
+on its own database. This keeps the Postgres superuser password out of
+the project entirely — `capycorp_app`'s credentials live only in the
+git-ignored `.env`.
+
+### Prisma pinned to `^6`
+
+Same constraint as Vitest: Prisma 7 requires Node ≥20.19, this
+environment runs 20.12. Pinned to the last major that supports it.
+
+### Auth.js Credentials, not OAuth or a hosted auth provider
+
+Email + password via Auth.js's Credentials provider, `bcryptjs` hashing,
+JWT sessions (`session: { strategy: "jwt" }`) — no `@auth/prisma-adapter`,
+since that adapter's schema (`Account`/`Session`/`VerificationToken`) only
+earns its keep for OAuth account linking or database-backed sessions,
+neither of which this build uses. The tradeoff: adding an OAuth provider
+later means introducing that adapter and its tables at that point, not
+before they're needed.
+
+`AgentRole`'s Prisma enum values are lowercase specifically to match the
+`AgentRole` union already in `lib/simulation/office-layout.ts` — one
+source of truth for the string values, no mapping layer between the DB
+and the simulation code.
+
+### What this did and didn't touch
+
+`app/page.tsx` is now an async Server Component that calls `auth()` and
+redirects unauthenticated visitors to `/sign-in`. That's the only change
+to the simulation-facing code. `OfficeExperience`, `OfficeCanvas`,
+`DevControlPanel`, `AgentInspector`, and the entire `lib/simulation/*`
+layer are untouched — they still run on `createLocalOfficeAdapter()`,
+which has no idea a database now exists. Signing in gates _access_ to the
+page; it doesn't yet change what the page shows.
+
+## 12. Recommended next milestone
+
+Wire the simulation to the database — this is the part Phase 2 actually
+promised and the part still missing. Concretely: a business-selection
+screen backed by real `Business` rows (`prisma.business.findMany` scoped
+to the signed-in user), agents created from the `AgentRole` templates
+already in the schema, and a new `OfficeEventAdapter` implementation that
+reads/writes through API routes instead of an in-memory store —
+`OfficeCanvas`/`DevControlPanel`/`AgentInspector` should need zero
+changes to consume it, the same way they needed none for the scripted
+adapter. The scripted demo stays useful afterward as a fixture for local
+development and tests. Only once that's real does AI orchestration
+(Phase 3) become worth building.

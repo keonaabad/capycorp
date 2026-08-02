@@ -126,6 +126,7 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
     if (!host) return;
 
     let disposed = false;
+    let appReady = false;
     const app = new Application();
     const rigs = new Map<string, SpriteRig>();
 
@@ -137,9 +138,14 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
         antialias: true,
       });
       if (disposed || !host) {
+        // Unmounted (e.g. Strict Mode's dev double-invoke) before init
+        // resolved. app.canvas/app.destroy aren't safe to touch until
+        // init finishes, which is why the outer cleanup below doesn't
+        // call them in this case — this is the only teardown path.
         app.destroy(true, { children: true });
         return;
       }
+      appReady = true;
       host.appendChild(app.canvas);
 
       const floor = new Graphics()
@@ -244,10 +250,12 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
     return () => {
       disposed = true;
       unsubscribe();
-      if (app.canvas?.parentElement) {
-        app.canvas.parentElement.removeChild(app.canvas);
+      if (appReady) {
+        if (app.canvas?.parentElement) {
+          app.canvas.parentElement.removeChild(app.canvas);
+        }
+        app.destroy(true, { children: true });
       }
-      app.destroy(true, { children: true });
     };
   }, [adapter]);
 
