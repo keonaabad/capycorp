@@ -3,6 +3,7 @@ import { createStore } from "zustand/vanilla";
 import {
   createInitialRuntimeState,
   pause as pauseTransition,
+  reset as resetTransition,
   resume as resumeTransition,
   setState as setStateTransition,
   type AgentRuntimeState,
@@ -35,6 +36,8 @@ export interface OfficeEventAdapter {
   setAgentState(agentId: string, to: AgentState): TransitionResult;
   pauseAgent(agentId: string): TransitionResult;
   resumeAgent(agentId: string): TransitionResult;
+  /** Starts a fresh lifecycle for an idle/completed/failed agent. See state-machine.ts reset(). */
+  resetAgent(agentId: string): TransitionResult;
   setAgentTask(agentId: string, task: string | null): void;
   selectAgent(agentId: string | null): void;
 }
@@ -82,6 +85,7 @@ export function createLocalOfficeAdapter(): OfficeEventAdapter {
       applyTransition(agentId, (runtime) => setStateTransition(runtime, to)),
     pauseAgent: (agentId) => applyTransition(agentId, pauseTransition),
     resumeAgent: (agentId) => applyTransition(agentId, resumeTransition),
+    resetAgent: (agentId) => applyTransition(agentId, resetTransition),
     setAgentTask: (agentId, task) => {
       store.setState((snapshot) => {
         const agent = snapshot.agents[agentId];

@@ -11,7 +11,13 @@ import {
   type OfficeEventAdapter,
 } from "@/lib/simulation/adapter";
 
-export function DevControlPanel({ adapter }: { adapter: OfficeEventAdapter }) {
+export function DevControlPanel({
+  adapter,
+  disabled = false,
+}: {
+  adapter: OfficeEventAdapter;
+  disabled?: boolean;
+}) {
   const agents = useOfficeSnapshot(adapter, (snapshot) => snapshot.agents);
 
   return (
@@ -56,8 +62,9 @@ export function DevControlPanel({ adapter }: { adapter: OfficeEventAdapter }) {
                 <button
                   key={state}
                   type="button"
-                  className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/80 transition-colors hover:border-lime-300 hover:text-lime-300"
+                  className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/80 transition-colors hover:border-lime-300 hover:text-lime-300 disabled:opacity-30 disabled:hover:border-white/15 disabled:hover:text-white/80"
                   onClick={() => adapter.setAgentState(agent.id, state)}
+                  disabled={disabled}
                 >
                   {state}
                 </button>
@@ -65,8 +72,9 @@ export function DevControlPanel({ adapter }: { adapter: OfficeEventAdapter }) {
               {runtime.current === "paused" ? (
                 <button
                   type="button"
-                  className="rounded border border-lime-300/60 px-2 py-1 text-[11px] text-lime-300"
+                  className="rounded border border-lime-300/60 px-2 py-1 text-[11px] text-lime-300 disabled:opacity-30"
                   onClick={() => adapter.resumeAgent(agent.id)}
+                  disabled={disabled}
                 >
                   resume
                 </button>
@@ -76,7 +84,9 @@ export function DevControlPanel({ adapter }: { adapter: OfficeEventAdapter }) {
                   className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 transition-colors hover:border-amber-300 hover:text-amber-300 disabled:opacity-30"
                   onClick={() => adapter.pauseAgent(agent.id)}
                   disabled={
-                    runtime.current === "idle" || isTerminal(runtime.current)
+                    disabled ||
+                    runtime.current === "idle" ||
+                    isTerminal(runtime.current)
                   }
                 >
                   pause

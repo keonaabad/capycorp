@@ -122,3 +122,22 @@ export function resume(runtime: AgentRuntimeState): TransitionResult {
     state: { current: runtime.resumeState, resumeState: null },
   };
 }
+
+/**
+ * Start a fresh lifecycle. Unlike setState(), this is not a step in the
+ * forward transition graph — idle has no incoming edges there, since
+ * nothing should be able to rewind an in-progress agent back to idle.
+ * reset() is the explicit, named exception: an agent that is already
+ * idle or has finished (completed/failed) a task may be handed a new one.
+ * An agent that is actively working, paused, etc. must finish or fail
+ * first — reset() will not interrupt it.
+ */
+export function reset(runtime: AgentRuntimeState): TransitionResult {
+  if (runtime.current !== "idle" && !isTerminal(runtime.current)) {
+    return {
+      ok: false,
+      reason: `Cannot reset an agent mid-task (state "${runtime.current}"); let it complete or fail first.`,
+    };
+  }
+  return { ok: true, state: createInitialRuntimeState() };
+}

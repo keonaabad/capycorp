@@ -4,6 +4,7 @@ import {
   createInitialRuntimeState,
   isTerminal,
   pause,
+  reset,
   resume,
   setState,
 } from "./state-machine";
@@ -140,6 +141,46 @@ describe("pause / resume", () => {
   it("refuses to resume a non-paused agent", () => {
     const working = { current: "working" as const, resumeState: null };
     const result = resume(working);
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("reset", () => {
+  it("resets a completed agent back to idle", () => {
+    const completed = { current: "completed" as const, resumeState: null };
+    expect(reset(completed)).toEqual({
+      ok: true,
+      state: { current: "idle", resumeState: null },
+    });
+  });
+
+  it("resets a failed agent back to idle", () => {
+    const failed = { current: "failed" as const, resumeState: null };
+    expect(reset(failed)).toEqual({
+      ok: true,
+      state: { current: "idle", resumeState: null },
+    });
+  });
+
+  it("is a no-op for an already-idle agent", () => {
+    expect(reset(createInitialRuntimeState())).toEqual({
+      ok: true,
+      state: { current: "idle", resumeState: null },
+    });
+  });
+
+  it("refuses to reset an agent mid-task", () => {
+    const working = { current: "working" as const, resumeState: null };
+    const result = reset(working);
+    expect(result.ok).toBe(false);
+  });
+
+  it("refuses to reset a paused agent", () => {
+    const paused = {
+      current: "paused" as const,
+      resumeState: "working" as const,
+    };
+    const result = reset(paused);
     expect(result.ok).toBe(false);
   });
 });

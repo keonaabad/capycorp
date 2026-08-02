@@ -144,11 +144,35 @@ Static office prototype (Phase 0 + Phase 1), matching proposal section 22:
 Not started (intentionally, see proposal section 8 and section 17 Phase 2+):
 auth, persistence, real orchestration, multi-business, billing.
 
-## 10. Recommended next milestone
+## 10. Phase 1.5: deterministic fake event stream — done
 
-Per proposal section 23: connect the existing adapter interface to a
-**deterministic fake event stream** (a scripted sequence of state changes
-played on a timer) before touching real AI orchestration. This validates
-that `OfficeEventAdapter` really is swappable — the office canvas and
-inspector should need zero changes to consume it — without yet taking on
-the complexity of a planner, an LLM provider, or persistence.
+Per proposal section 23, before touching real AI orchestration: prove the
+`OfficeEventAdapter` abstraction is actually swappable by driving it from
+something other than the dev control panel.
+
+- `lib/simulation/demo-script.ts` — a scripted timeline modeling the
+  proposal's "Example interaction" (a manager delegating research, design,
+  and engineering subtasks, then assembling a final brief), adapted to
+  this build's real four-agent roster.
+- `lib/simulation/script-player.ts` — plays a script's steps against
+  **any** `OfficeEventAdapter` on a timer, with optional looping that
+  resets touched agents between runs via the new `reset()` transition
+  (`state-machine.ts`), unit tested with Vitest fake timers.
+- The "Play scripted demo" button in `OfficeExperience` runs the script
+  against the _same_ local adapter instance the dev panel already uses.
+  `OfficeCanvas`, `DevControlPanel`, and `AgentInspector` required zero
+  changes — they only ever call `adapter.subscribe()`/`getSnapshot()`,
+  so they don't know or care whether a click or a `setTimeout` triggered
+  the update. That's the actual proof the adapter abstraction holds.
+
+The dev panel disables itself while the script plays, so the two drivers
+never fight over the same agents.
+
+## 11. Recommended next milestone
+
+The scripted stream proves the adapter boundary; it still runs entirely
+client-side with no persistence. The next real step is Phase 2 from the
+proposal: authentication, a saved `Business`/`Agent`/`Task` model in
+Postgres, and swapping `createLocalOfficeAdapter()` for one backed by
+actual API routes — at which point the scripted demo becomes a useful
+fixture for local development and tests rather than the only data source.

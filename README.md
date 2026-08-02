@@ -28,6 +28,10 @@ machine itself don't need to change when that happens.
 - The whole simulation isolated behind an `OfficeEventAdapter` interface
   (`lib/simulation/adapter.ts`) so a future backend-driven implementation
   can replace the local one without touching any component
+- A **scripted demo** (`▶ Play scripted demo`) that plays a canned
+  research → design/engineering → approval task through the same adapter
+  the dev panel uses, looping automatically — proof the adapter
+  abstraction holds regardless of what's driving it
 
 ## What's not here yet
 
@@ -52,8 +56,8 @@ Open [http://localhost:3000](http://localhost:3000).
 npm run typecheck
 npm run lint
 npm run format:check
-npm run test        # Vitest — state machine unit tests
-npm run test:e2e     # Playwright — loads the office, drives state transitions, tests click-to-inspect
+npm run test        # Vitest — state machine + script player unit tests
+npm run test:e2e     # Playwright — dev panel transitions, click-to-inspect, scripted demo
 ```
 
 `test:e2e` starts its own dev server on port 3100 (see
@@ -76,8 +80,8 @@ have running on 3000.
 
 ## Recommended next milestone
 
-Connect the existing `OfficeEventAdapter` to a deterministic fake event
-stream (a scripted sequence of state changes on a timer) instead of the
-manual dev panel. If the office canvas and inspector need zero changes to
-consume it, the adapter abstraction is proven — only then does real AI
-orchestration (Phase 3 in the proposal) become worth building.
+The scripted demo already proves the `OfficeEventAdapter` boundary holds
+client-side; it still has no persistence. The next real step is Phase 2
+from the proposal: authentication, a saved `Business`/`Agent`/`Task`
+model in Postgres, and a backend-backed adapter implementation — only
+then does real AI orchestration (Phase 3) become worth building.
