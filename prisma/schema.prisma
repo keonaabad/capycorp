@@ -1,0 +1,105 @@
+// Phase 2 schema: just enough to persist businesses, agents, and tasks and
+// show an activity timeline (proposal section 17, Phase 2 deliverables).
+// Subtask, AgentMessage, Artifact, ToolDefinition, and AgentToolPermission
+// (proposal section 13) are deferred to Phase 3, when real orchestration
+// actually needs them — see docs/architecture.md.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  businesses   Business[]
+}
+
+model Business {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  industry    String?
+  description String?
+  archived    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  agents      Agent[]
+  tasks       Task[]
+  events      AgentEvent[]
+}
+
+// Lowercase to match lib/simulation/office-layout.ts's AgentRole union —
+// keeps the DB and simulation layers using the same literal strings
+// instead of a mapping layer between them.
+enum AgentRole {
+  manager
+  engineer
+  researcher
+  designer
+}
+
+model Agent {
+  id           String       @id @default(cuid())
+  businessId   String
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name         String
+  role         AgentRole
+  instructions String?
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  events       AgentEvent[]
+}
+
+enum TaskStatus {
+  pending
+  running
+  paused
+  completed
+  failed
+  cancelled
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  businessId  String
+  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title       String
+  goal        String
+  status      TaskStatus   @default(pending)
+  createdAt   DateTime     @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  events      AgentEvent[]
+}
+
+// One append-only table backs the activity timeline for a business. Kept
+// intentionally loose (a string type + a JSON payload) since the exact
+// event shapes are still being worked out client-side in
+// lib/simulation/state-machine.ts and will settle before Phase 3 wires
+// this up to real writes.
+model AgentEvent {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  taskId     String?
+  task       Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agentId    String?
+  agent      Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  type       String
+  data       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, createdAt])
+}
