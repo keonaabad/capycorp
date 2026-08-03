@@ -8,8 +8,9 @@
 // concrete tools that actually exist.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider   = "prisma-client"
+  output     = "../lib/generated/prisma"
+  engineType = "client"
 }
 
 datasource db {

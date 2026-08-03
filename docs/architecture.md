@@ -1139,15 +1139,50 @@ dashboard doesn't surface a stack trace inline) showed the real error:
 `PrismaClientInitializationError: Prisma Client could not locate the
 Query Engine for runtime "rhel-openssl-3.0.x"`. `prisma generate` had
 run and produced the right binary for Vercel's platform — the binary
-just never made it into the deployed function bundle. Next's build-time
-file tracer (`@vercel/nft`) only follows files it can see through
-static `import`/`require` analysis, and the Prisma generator's *custom*
-output path (`lib/generated/prisma`, not the default
-`node_modules/.prisma/client` the tracer already knows about) isn't one
-of them — the `.so.node` engine file got silently dropped. Fixed with
-`outputFileTracingIncludes: { "/*": ["./lib/generated/prisma/**/*"] }`
-in `next.config.ts`, confirmed by inspecting the emitted `.nft.json`
-trace file directly rather than trusting a green build.
+just never made it into the deployed function bundle, or so it seemed.
+First attempt: `outputFileTracingIncludes: { "/*":
+["./lib/generated/prisma/**/*"] }` in `next.config.ts`, on the theory
+that Next's file tracer doesn't follow a _custom_ Prisma output path
+the way it follows the default `node_modules/.prisma/client`.
+
+### The tracing fix looked right and still didn't work — don't trust a green build, check the actual bundle
+
+Inspecting the local `.nft.json` trace confirmed the engine binary was
+included. Pushed, redeployed, still 500. Rather than guess again, added
+a temporary `/api/debugfs` route that ran `fs.readdirSync` against the
+deployed Lambda's own filesystem — and the binary genuinely was sitting
+right there at `/var/task/lib/generated/prisma/`, next to the generated
+client. Instantiating `PrismaClient` from that same debug route still
+threw the identical "could not locate the Query Engine" error. So the
+file's presence was never the problem — Turbopack bundles route handler
+code into single combined chunk files under `.next/server/chunks/`, and
+Prisma's engine lookup is `__dirname`-relative, computed against the
+_original_ module layout. Once bundled, `__dirname` no longer points
+anywhere near `lib/generated/prisma`, no matter how correctly the raw
+file got traced into the deployment.
+
+### The actual fix: stop needing a binary at all
+
+Prisma 6.16+ has a GA "Rust-free" mode — `engineType = "client"` in the
+generator block plus a driver adapter (`@prisma/adapter-pg`, using the
+standard `pg` driver) — that compiles queries to SQL in TypeScript
+instead of shelling out to a native engine binary. No binary, no
+bundler-relative lookup to break. Chosen over the Neon-specific adapter
+(`@prisma/adapter-neon`) specifically so local dev against a plain local
+Postgres and production against Neon's pooled connection string run
+through the identical code path — standard Postgres wire protocol works
+for both, so there's nothing that only works in one environment.
+`lib/prisma.ts` now constructs the client with `new PrismaPg({
+connectionString: process.env.DATABASE_URL })` and passes it in as
+`adapter`. `outputFileTracingIncludes` came back out of
+`next.config.ts` — it was solving a problem that no longer exists.
+
+One real mistake caught before it shipped: `npm install
+@prisma/adapter-pg` pulled `7.9.1` by default (npm's "latest," no
+peer-dependency warning to catch it), while `@prisma/client` is pinned
+at `6.19.3` — a major-version mismatch between adapter and client that
+happened to _work_ in local testing but wasn't something to trust
+long-term. Pinned to the matching `@prisma/adapter-pg@6.19.3` instead.
 
 ### What this didn't do
 
