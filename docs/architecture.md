@@ -1026,14 +1026,61 @@ reachable (via the secondary "Already have access? Sign in" link and
 sign-in's own "Create one" link) — this de-emphasizes them on the landing
 page, it doesn't gate or remove them.
 
-## 23. Recommended next milestone
+## 23. Shipped: pushed to GitHub, added to the portfolio as a case study
 
-Two items still open from a couple of rounds back, now that the shell
-and landing page are both portfolio-ready: pushing art fidelity further
-(the user's own "this isn't the UI I pictured," never fully resolved —
-procedural iteration vs. hand-authored per-pixel sprites vs. real art is
-still a live decision), and the multi-agent-overlap bug (agents sharing a
-destination — the meeting table, the manager's inbox — still stack
-exactly on top of each other). Beyond those: a real approval gate before
-a task runs, or starting the actual resume case study now that the UI is
-at a presentable baseline. Which matters most is the user's call.
+Two commits pushed to `github.com/keonaabad/capycorp` main: one for the
+pixel-art/multi-room-office/state-visual-language work, one for the tool
+registry + MVP dark shell + waitlist landing page (see commit messages
+for the full breakdown — split so an intermediate checkout of either
+commit still typechecks and builds, not just the final state).
+
+Also replaced the "SaaS Intelligence Dashboard" (upcoming-build)
+placeholder in `keona-portfolio` (the user's real portfolio — see the
+`reference-keona-portfolio-repo` memory for why that's worth saying
+explicitly) with a real CapyCorp case study: role, three contributions,
+architecture writeup, and two screenshots taken live from the running
+app. Confirmed the portfolio still typechecks, lints, and builds before
+pushing.
+
+## 24. Recommended next steps
+
+**Hosting — a real architectural decision, not a checklist item.** This
+app cannot simply be deployed to Vercel (or any serverless host) as-is.
+§14 documented this at the time it was a local-dev-scoped limitation, not
+yet a blocker: task orchestration runs fire-and-forget in the same Node
+process (`runTaskOrchestration`, detached from the request), relying on
+that process staying alive after the response is sent. Vercel's
+serverless functions do not do this — the function returns and the
+process may be frozen or killed, so a task would visibly start and then
+just stop mid-run. Two real paths forward, worth deciding between rather
+than discovering by trial and error:
+
+- **Host on something that keeps a long-lived Node process** (a small
+  VPS, Railway, Render, Fly.io) — the current architecture works
+  unmodified. Simplest path, but it's a different deployment model than
+  "push to Vercel."
+- **Build a real background-job system** (a queue + worker, e.g.
+  BullMQ/Redis — already named as deferred-until-needed back in Phase 2)
+  — works on serverless, but is real new infrastructure, not
+  configuration.
+
+Either way, hosting also needs: a real Postgres instance (the current
+one is local-only — Neon/Supabase/Railway Postgres are the usual
+serverless-friendly options), and the same secrets currently in local
+`.env` (`DATABASE_URL`, `AUTH_SECRET`, `ANTHROPIC_API_KEY`,
+`ANTHROPIC_MODEL`, `TAVILY_API_KEY`) set in whatever host is chosen. This
+needs the user's own action either way — creating accounts and entering
+API keys into a hosting dashboard isn't something to do on someone's
+behalf.
+
+**Two items still open from a couple of rounds back:** pushing art
+fidelity further (the user's own "this isn't the UI I pictured," never
+fully resolved — procedural iteration vs. hand-authored per-pixel
+sprites vs. real art is still a live decision), and the multi-agent-
+overlap bug (agents sharing a destination — the meeting table, the
+manager's inbox — still stack exactly on top of each other).
+
+**Beyond those:** a real approval gate before a task runs, or moving
+toward the proposal's later-phase scope (multi-business collaboration,
+a building overview) now that recruiters may already be looking at the
+repo and the portfolio case study.
