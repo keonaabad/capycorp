@@ -458,11 +458,87 @@ activity-timeline UI — all unchanged from Phase 3 part 1's own list. No
 production-deployment story for the fire-and-forget execution model — that
 remains local-dev-scoped until a real background-job system exists.
 
-## 15. Recommended next milestone
+## 15. Real web search — done
 
-A real tool registry (web search, structured JSON output, a calculator) —
-the "work" agents do is still explicitly simulated
-(`performSubtaskWork()`'s prompt says so outright). This is Phase 3's
-original remaining scope, and now that a run is watchable live, making the
-work itself real is worth more than it would have been before this
-milestone.
+`performSubtaskWork()` no longer produces a fictional summary — it's a
+real multi-turn tool-use loop against Claude, with a real Tavily-backed
+`web_search` tool the model can call (`tool_choice: "auto"` — it decides
+whether searching would help, it isn't forced). Scope deliberately
+narrow, confirmed with the user: web search only, not a calculator, file
+generation, or a generic tool-permission system — `docs/product-proposal.md`
+already treats a full tool registry as separate, later scope, and building
+an abstraction for exactly one tool now would solve a problem that
+doesn't exist yet.
+
+This is also the first time `"using_tool"` — one of the state machine's
+original 12 states, defined since Phase 1 — has ever been driven by real
+logic. `STATE_LABEL` and `destinationForState` already handled it for
+rendering from day one; it just never had anything real to represent
+until now.
+
+### Considered and rejected: Anthropic's server-side web search tool
+
+The SDK ships `web_search_20250305` — a server-side tool where Anthropic
+executes the search internally and returns already-resolved result
+blocks in one `.messages.create()` call, no client-side loop needed. Not
+used: it would give no hook point to drive `using_tool` mid-call or
+record this app's own `AgentEvent` shape, and the user wanted their own
+Tavily key and control over the provider. Worth knowing, not worth
+switching to.
+
+### The hook contract, not a generic tool registry
+
+`lib/ai/*` has kept a zero-Prisma-imports boundary since Phase 3 (mirrored
+by `lib/simulation/*`'s zero-React-imports boundary) — state and DB stay
+the caller's concern, error-shaping into a `tool_result` stays the AI
+layer's. Rather than thread Prisma into `perform-subtask.ts` or invent a
+generic plugin system for one tool, it takes a single typed hook:
+
+```ts
+export interface SubtaskToolHooks {
+  onWebSearch(
+    query: string,
+    run: () => Promise<WebSearchResult[]>,
+  ): Promise<WebSearchResult[]>;
+}
+```
+
+`run-task-orchestration.ts`'s `runSubtask` supplies the real hook: before
+executing an actual search it drives `working → using_tool` (reusing the
+same `driveAgentStates` helper everything else already uses) and writes
+an `AgentEvent` (`type: "agent.tool_started"`, matching
+`docs/product-proposal.md` §12's own event-naming convention rather than
+inventing a new one); after the search, a paired `"agent.tool_completed"`
+event; in a `finally`, drives back to `"working"` regardless of
+success/failure. This fires **once per actual tool execution**, not once
+per subtask — if the model searches three times, that's three real
+`working→using_tool→working` cycles, each with its own event, because
+using_tool is supposed to mean "invoking a tool right now," not "this
+subtask happens to use tools somewhere."
+
+Search failures (network, auth, rate limit) are caught and fed back to
+the model as a `tool_result` with `is_error: true` rather than failing
+the subtask outright — the model gets a chance to recover (answer from
+its own knowledge, note the search failed) the same way a real agent
+would try again or work around a broken tool, rather than the whole
+subtask dying over one transient Tavily hiccup. Only the Anthropic call
+itself failing, or the tool loop exceeding its iteration cap, propagates
+as a real subtask failure.
+
+### What this didn't do
+
+No calculator, no file generation, no structured artifact storage, no
+generic multi-tool permission system (`ToolDefinition`/`AgentToolPermission`
+from the proposal's draft schema stay unbuilt). No SSE — still polling,
+per §14's already-documented reasoning; a fast search can complete inside
+one polling interval and never be visibly observed, same accepted
+limitation as before. No production deployment story for the
+fire-and-forget execution model — unchanged from §14.
+
+## 16. Recommended next milestone
+
+An activity-timeline UI reading back the `AgentEvent` history that three
+milestones in a row have now been writing (`agent.state_changed` since
+Phase 3, `agent.tool_started`/`agent.tool_completed` since this one) with
+nothing ever reading it back. The data has been real and structured the
+whole time; the only thing missing is a screen that shows it.

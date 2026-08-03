@@ -58,6 +58,7 @@ function makeAgents(businessId: string): AgentRecord[] {
 function createPrismaMock(agents: AgentRecord[], taskId: string) {
   const agentMap = new Map(agents.map((a) => [a.id, a]));
   const subtasks: Record<string, unknown>[] = [];
+  const events: Record<string, unknown>[] = [];
   let subtaskSeq = 0;
   const task: Record<string, unknown> = {
     id: taskId,
@@ -73,14 +74,18 @@ function createPrismaMock(agents: AgentRecord[], taskId: string) {
       return Promise.resolve({ ...agent });
     },
   );
+  const agentEventCreate = vi.fn((args: { data: Record<string, unknown> }) => {
+    events.push(args.data);
+    return Promise.resolve({ id: `evt-${events.length}`, ...args.data });
+  });
 
   const prisma = {
     agent: { update: agentUpdate },
-    agentEvent: { create: vi.fn().mockResolvedValue({}) },
+    agentEvent: { create: agentEventCreate },
     $transaction: vi.fn((fn: (tx: unknown) => unknown) =>
       fn({
         agent: { update: agentUpdate },
-        agentEvent: { create: vi.fn().mockResolvedValue({}) },
+        agentEvent: { create: agentEventCreate },
       }),
     ),
     task: {
@@ -106,7 +111,13 @@ function createPrismaMock(agents: AgentRecord[], taskId: string) {
     },
   };
 
-  return { prisma, agentMap, getTask: () => task, getSubtasks: () => subtasks };
+  return {
+    prisma,
+    agentMap,
+    getTask: () => task,
+    getSubtasks: () => subtasks,
+    getEvents: () => events,
+  };
 }
 
 let currentPrismaMock: ReturnType<typeof createPrismaMock>;
@@ -224,5 +235,66 @@ describe("runTaskOrchestration", () => {
       (s) => (s as { agentId: string }).agentId === "agent-researcher",
     );
     expect((researcherSubtask as { status: string }).status).toBe("completed");
+  });
+
+  it("drives the agent through using_tool and logs tool_started/tool_completed events when a subtask searches", async () => {
+    const agents = makeAgents("biz-1");
+    currentPrismaMock = createPrismaMock(agents, "task-1");
+    const manager = agents[0];
+    const agentsByRole = new Map(agents.map((a) => [a.role, a]));
+
+    planTaskMock.mockResolvedValue([
+      { role: "researcher", title: "Research pricing", description: "..." },
+    ]);
+    let observedStateDuringSearch: string | undefined;
+    performSubtaskWorkMock.mockImplementation(
+      async (
+        _subtask: unknown,
+        hooks: {
+          onWebSearch: (
+            q: string,
+            run: () => Promise<unknown>,
+          ) => Promise<unknown>;
+        },
+      ) => {
+        await hooks.onWebSearch("competitor pricing", async () => {
+          observedStateDuringSearch =
+            currentPrismaMock.agentMap.get("agent-researcher")?.state;
+          return [{ title: "t", url: "u", snippet: "s" }];
+        });
+        return "Done.";
+      },
+    );
+
+    await runTaskOrchestration(
+      "task-1",
+      manager as never,
+      agentsByRole as never,
+      "Ship a pricing page",
+    );
+
+    expect(observedStateDuringSearch).toBe("using_tool");
+    expect(currentPrismaMock.agentMap.get("agent-researcher")?.state).toBe(
+      "completed",
+    );
+
+    const events = currentPrismaMock.getEvents();
+    const started = events.find(
+      (e) => (e as { type: string }).type === "agent.tool_started",
+    );
+    const completed = events.find(
+      (e) => (e as { type: string }).type === "agent.tool_completed",
+    );
+    expect(started).toMatchObject({
+      data: { tool: "web_search", query: "competitor pricing" },
+    });
+    expect(completed).toMatchObject({
+      data: {
+        tool: "web_search",
+        query: "competitor pricing",
+        ok: true,
+        resultCount: 1,
+      },
+    });
   });
 });

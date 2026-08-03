@@ -208,7 +208,11 @@ describe("POST /api/businesses/[id]/tasks", () => {
     const agents = makeAgents("biz-1");
     for (const agent of agents) agent.state = "completed";
     currentPrismaMock = createPrismaMock(agents);
-    businessFindUniqueMock.mockResolvedValue({ id: "biz-1", userId: "user-1", agents });
+    businessFindUniqueMock.mockResolvedValue({
+      id: "biz-1",
+      userId: "user-1",
+      agents,
+    });
 
     await POST(makeRequest({ goal: "Ship a pricing page" }), ctx);
 

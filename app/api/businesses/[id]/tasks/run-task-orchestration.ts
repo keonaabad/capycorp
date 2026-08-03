@@ -73,7 +73,57 @@ async function runSubtask(
       "planning",
       "working",
     ]);
-    const result = await performSubtaskWork(planned);
+    const result = await performSubtaskWork(planned, {
+      // Fired once per *actual* search the model runs — not once per
+      // subtask — so working<->using_tool visibly cycles for every real
+      // call, matching what's actually happening rather than a single
+      // decorative blip.
+      async onWebSearch(query, run) {
+        runtime = await driveAgentStates(agentRow, runtime, ["using_tool"]);
+        await prisma.agentEvent.create({
+          data: {
+            businessId: agentRow.businessId,
+            agentId: agentRow.id,
+            taskId,
+            type: "agent.tool_started",
+            data: { tool: "web_search", query },
+          },
+        });
+        try {
+          const results = await run();
+          await prisma.agentEvent.create({
+            data: {
+              businessId: agentRow.businessId,
+              agentId: agentRow.id,
+              taskId,
+              type: "agent.tool_completed",
+              data: {
+                tool: "web_search",
+                query,
+                ok: true,
+                resultCount: results.length,
+              },
+            },
+          });
+          return results;
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Web search failed.";
+          await prisma.agentEvent.create({
+            data: {
+              businessId: agentRow.businessId,
+              agentId: agentRow.id,
+              taskId,
+              type: "agent.tool_completed",
+              data: { tool: "web_search", query, ok: false, error: message },
+            },
+          });
+          throw error;
+        } finally {
+          runtime = await driveAgentStates(agentRow, runtime, ["working"]);
+        }
+      },
+    });
     await prisma.subtask.update({
       where: { id: subtask.id },
       data: { result, status: "completed", completedAt: new Date() },
