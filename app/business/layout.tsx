@@ -28,7 +28,11 @@ export default async function BusinessLayout({
   });
 
   return (
-    <div className="flex h-screen bg-page text-ink">
+    // Column below md so Sidebar's mobile top bar (an in-flow div — the
+    // rest of Sidebar's markup at that width is `fixed`, out of flow)
+    // stacks above `main` instead of sitting beside it; row at md+ where
+    // Sidebar's <aside> becomes `static` and takes its normal place.
+    <div className="flex h-screen flex-col bg-page text-ink md:flex-row">
       <Sidebar businesses={businesses} userEmail={session.user.email ?? ""} />
       <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
     </div>

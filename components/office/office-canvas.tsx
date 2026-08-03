@@ -242,6 +242,14 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
         return;
       }
       appReady = true;
+      // PixiJS still renders at a fixed OFFICE_WIDTH x OFFICE_HEIGHT
+      // resolution — cheap and plenty crisp for pixel art — but the
+      // canvas element itself is told to fill its (now responsive) host
+      // div instead of sitting at a fixed pixel size, so it scales down
+      // on narrower viewports instead of overflowing them.
+      app.canvas.style.width = "100%";
+      app.canvas.style.height = "100%";
+      app.canvas.style.display = "block";
       host.appendChild(app.canvas);
 
       app.stage.addChild(buildOfficeScene());
@@ -364,8 +372,8 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
   return (
     <div
       ref={hostRef}
-      className="overflow-hidden rounded-lg border border-border"
-      style={{ width: OFFICE_WIDTH, height: OFFICE_HEIGHT }}
+      className="w-full max-w-[800px] overflow-hidden rounded-lg border border-border"
+      style={{ aspectRatio: `${OFFICE_WIDTH} / ${OFFICE_HEIGHT}` }}
     />
   );
 }
