@@ -64,6 +64,13 @@ export default async function BusinessPage({
     include: { agent: { select: { name: true, role: true } } },
   });
 
+  const taskResults = await prisma.subtask.findMany({
+    where: { task: { businessId: business.id } },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    include: { agent: { select: { name: true, role: true } } },
+  });
+
   return (
     <BusinessOffice
       key={agentsFingerprint}
@@ -72,6 +79,7 @@ export default async function BusinessPage({
       agents={agents}
       events={events}
       artifacts={artifacts}
+      taskResults={taskResults}
     />
   );
 }

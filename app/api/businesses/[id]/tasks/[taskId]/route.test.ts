@@ -4,6 +4,7 @@ const authMock = vi.fn();
 const businessFindUniqueMock = vi.fn();
 const taskFindUniqueMock = vi.fn();
 const agentFindManyMock = vi.fn();
+const subtaskFindManyMock = vi.fn();
 
 vi.mock("@/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/prisma", () => ({
@@ -11,6 +12,7 @@ vi.mock("@/lib/prisma", () => ({
     business: { findUnique: businessFindUniqueMock },
     task: { findUnique: taskFindUniqueMock },
     agent: { findMany: agentFindManyMock },
+    subtask: { findMany: subtaskFindManyMock },
   },
 }));
 
@@ -28,6 +30,8 @@ describe("GET /api/businesses/[id]/tasks/[taskId]", () => {
     businessFindUniqueMock.mockReset();
     taskFindUniqueMock.mockReset();
     agentFindManyMock.mockReset();
+    subtaskFindManyMock.mockReset();
+    subtaskFindManyMock.mockResolvedValue([]);
     authMock.mockResolvedValue({ user: { id: "user-1" } });
   });
 
@@ -47,6 +51,16 @@ describe("GET /api/businesses/[id]/tasks/[taskId]", () => {
         currentTask: "Delegating",
       },
     ]);
+    subtaskFindManyMock.mockResolvedValue([
+      {
+        id: "subtask-1",
+        title: "Research pricing",
+        result: "Found three competitors.",
+        status: "completed",
+        completedAt: null,
+        agent: { name: "Hazel", role: "researcher" },
+      },
+    ]);
 
     const response = await GET(makeRequest(), ctx);
     expect(response.status).toBe(200);
@@ -58,6 +72,16 @@ describe("GET /api/businesses/[id]/tasks/[taskId]", () => {
         state: "working",
         resumeState: null,
         currentTask: "Delegating",
+      },
+    ]);
+    expect(body.subtasks).toEqual([
+      {
+        id: "subtask-1",
+        title: "Research pricing",
+        result: "Found three competitors.",
+        status: "completed",
+        completedAt: null,
+        agent: { name: "Hazel", role: "researcher" },
       },
     ]);
   });

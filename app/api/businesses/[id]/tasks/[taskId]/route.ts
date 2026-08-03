@@ -27,6 +27,11 @@ export async function GET(
   }
 
   const agents = await prisma.agent.findMany({ where: { businessId } });
+  const subtasks = await prisma.subtask.findMany({
+    where: { taskId },
+    include: { agent: { select: { name: true, role: true } } },
+    orderBy: { createdAt: "asc" },
+  });
 
   return NextResponse.json({
     task: {
@@ -39,6 +44,14 @@ export async function GET(
       state: agent.state,
       resumeState: agent.resumeState,
       currentTask: agent.currentTask,
+    })),
+    subtasks: subtasks.map((subtask) => ({
+      id: subtask.id,
+      title: subtask.title,
+      result: subtask.result,
+      status: subtask.status,
+      completedAt: subtask.completedAt,
+      agent: subtask.agent,
     })),
   });
 }

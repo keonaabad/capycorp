@@ -18,6 +18,10 @@ import {
   ArtifactList,
   type ArtifactListItem,
 } from "@/components/business/artifact-list";
+import {
+  TaskResults,
+  type TaskResultItem,
+} from "@/components/business/task-results";
 
 const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_MS = 90_000;
@@ -29,6 +33,14 @@ interface TaskPollResponse {
     state: BackendAgentSeed["state"];
     resumeState: BackendAgentSeed["resumeState"];
     currentTask: string | null;
+  }[];
+  subtasks: {
+    id: string;
+    title: string;
+    result: string | null;
+    status: string;
+    completedAt: string | null;
+    agent: { name: string; role: string } | null;
   }[];
 }
 
@@ -47,12 +59,14 @@ export function BusinessOffice({
   agents,
   events,
   artifacts,
+  taskResults: initialTaskResults,
 }: {
   businessId: string;
   businessName: string;
   agents: readonly BackendAgentSeed[];
   events: readonly ActivityFeedEvent[];
   artifacts: readonly ArtifactListItem[];
+  taskResults: readonly TaskResultItem[];
 }) {
   const router = useRouter();
   const [adapter] = useState<BackendOfficeAdapter>(() =>
@@ -60,6 +74,8 @@ export function BusinessOffice({
   );
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
+  const [taskResults, setTaskResults] =
+    useState<readonly TaskResultItem[]>(initialTaskResults);
 
   useEffect(() => {
     if (!activeTaskId) return;
@@ -79,6 +95,24 @@ export function BusinessOffice({
         if (cancelled) return;
 
         adapter.syncAgentsFromServer(body.agents);
+
+        // Upsert rather than replace — this poll only covers the active
+        // task's subtasks, and earlier tasks' results (seeded from the
+        // page's initial fetch) shouldn't disappear while this one runs.
+        // The eventual router.refresh() below remounts with a fresh
+        // server fetch anyway, so this is just for live smoothness.
+        setTaskResults((prev) => {
+          const byId = new Map(prev.map((item) => [item.id, item]));
+          for (const subtask of body.subtasks) {
+            byId.set(subtask.id, {
+              ...subtask,
+              completedAt: subtask.completedAt
+                ? new Date(subtask.completedAt)
+                : null,
+            });
+          }
+          return Array.from(byId.values());
+        });
 
         if (body.task.status !== "running") {
           clearInterval(interval);
@@ -137,6 +171,7 @@ export function BusinessOffice({
 
       <aside className="w-[360px] shrink-0 space-y-6 overflow-y-auto border-l border-border bg-sidebar p-4">
         <AgentInspector adapter={adapter} />
+        <TaskResults results={taskResults} />
         <ArtifactList artifacts={artifacts} />
         <ActivityFeed events={events} />
       </aside>
