@@ -26,7 +26,7 @@ export function ArchiveBusinessButton({ businessId }: { businessId: string }) {
       type="button"
       onClick={handleArchive}
       disabled={archiving}
-      className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 transition-colors hover:border-amber-300 hover:text-amber-300 disabled:opacity-40"
+      className="rounded border border-border px-2 py-1 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
     >
       {archiving ? "Archiving…" : "Archive"}
     </button>

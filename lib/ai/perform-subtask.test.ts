@@ -31,6 +31,17 @@ function toolUseResponse(id: string, query: string) {
   };
 }
 
+function toolUseResponseFor(
+  id: string,
+  name: string,
+  input: Record<string, unknown>,
+) {
+  return {
+    stop_reason: "tool_use",
+    content: [{ type: "tool_use", id, name, input }],
+  };
+}
+
 function lastMessageOf(callIndex: number) {
   const args = createMock.mock.calls[callIndex][0] as {
     messages: { content: unknown }[];
@@ -123,5 +134,127 @@ describe("performSubtaskWork", () => {
       lastMessageOf(1).content as { content: string }[]
     )[0];
     expect(toolResultBlock.content).toBe(JSON.stringify(hookResults));
+  });
+
+  it("evaluates a real calculator call and feeds the result back", async () => {
+    createMock
+      .mockResolvedValueOnce(
+        toolUseResponseFor("tool-1", "calculator", { expression: "2 + 2" }),
+      )
+      .mockResolvedValueOnce(textResponse("The total is 4."));
+
+    const result = await performSubtaskWork(subtask);
+
+    expect(result).toBe("The total is 4.");
+    const toolResultBlock = (
+      lastMessageOf(1).content as { content: string }[]
+    )[0];
+    expect(toolResultBlock.content).toBe("4");
+  });
+
+  it("feeds a calculator error back as an error tool_result instead of throwing", async () => {
+    createMock
+      .mockResolvedValueOnce(
+        toolUseResponseFor("tool-1", "calculator", { expression: "5 / 0" }),
+      )
+      .mockResolvedValueOnce(textResponse("Couldn't compute that."));
+
+    const result = await performSubtaskWork(subtask);
+
+    expect(result).toBe("Couldn't compute that.");
+    const toolResultBlock = (
+      lastMessageOf(1).content as { content: string; is_error?: boolean }[]
+    )[0];
+    expect(toolResultBlock.is_error).toBe(true);
+    expect(toolResultBlock.content).toMatch(/division by zero/i);
+  });
+
+  it("routes calculator calls through an explicit onCalculate hook", async () => {
+    createMock
+      .mockResolvedValueOnce(
+        toolUseResponseFor("tool-1", "calculator", { expression: "2 + 2" }),
+      )
+      .mockResolvedValueOnce(textResponse("Done."));
+    const onCalculate = vi.fn().mockResolvedValue(99);
+
+    const result = await performSubtaskWork(subtask, { onCalculate });
+
+    expect(result).toBe("Done.");
+    expect(onCalculate).toHaveBeenCalledWith("2 + 2", expect.any(Function));
+    const toolResultBlock = (
+      lastMessageOf(1).content as { content: string }[]
+    )[0];
+    expect(toolResultBlock.content).toBe("99");
+  });
+
+  it("saves a real file via generate_text_file and feeds confirmation back", async () => {
+    createMock
+      .mockResolvedValueOnce(
+        toolUseResponseFor("tool-1", "generate_text_file", {
+          filename: "notes.txt",
+          content: "Some findings.",
+        }),
+      )
+      .mockResolvedValueOnce(textResponse("Saved the notes."));
+
+    const result = await performSubtaskWork(subtask);
+
+    expect(result).toBe("Saved the notes.");
+    const toolResultBlock = (
+      lastMessageOf(1).content as { content: string }[]
+    )[0];
+    expect(toolResultBlock.content).toBe("Saved notes.txt.");
+  });
+
+  it("routes file generation through an explicit onGenerateFile hook", async () => {
+    createMock
+      .mockResolvedValueOnce(
+        toolUseResponseFor("tool-1", "generate_text_file", {
+          filename: "notes.txt",
+          content: "Some findings.",
+        }),
+      )
+      .mockResolvedValueOnce(textResponse("Done."));
+    const onGenerateFile = vi
+      .fn()
+      .mockResolvedValue({ filename: "notes.txt", content: "Some findings." });
+
+    const result = await performSubtaskWork(subtask, { onGenerateFile });
+
+    expect(result).toBe("Done.");
+    expect(onGenerateFile).toHaveBeenCalledWith(
+      { filename: "notes.txt", content: "Some findings." },
+      expect.any(Function),
+    );
+  });
+
+  it("treats submit_structured_result as terminal and formats it, without a tool_result round trip", async () => {
+    createMock.mockResolvedValueOnce(
+      toolUseResponseFor("tool-1", "submit_structured_result", {
+        summary: "Three competitors compared.",
+        items: [
+          { label: "Acme", value: "$10/mo" },
+          { label: "Globex", value: "$12/mo" },
+        ],
+      }),
+    );
+
+    const result = await performSubtaskWork(subtask);
+
+    expect(result).toBe(
+      "Three competitors compared.\n- Acme: $10/mo\n- Globex: $12/mo",
+    );
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws on a malformed submit_structured_result call", async () => {
+    createMock.mockResolvedValueOnce(
+      toolUseResponseFor("tool-1", "submit_structured_result", {
+        summary: "",
+        items: "not an array",
+      }),
+    );
+
+    await expect(performSubtaskWork(subtask)).rejects.toThrow(/malformed/i);
   });
 });

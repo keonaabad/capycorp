@@ -42,6 +42,42 @@ describe("formatEventLabel", () => {
     ).toBe("web search failed: Tavily rate limit exceeded.");
   });
 
+  it("formats agent.tool_started for calculator", () => {
+    expect(
+      formatEventLabel({
+        type: "agent.tool_started",
+        data: { tool: "calculator", expression: "12 * 3" },
+      }),
+    ).toBe("Started calculator: 12 * 3");
+  });
+
+  it("formats a successful calculator agent.tool_completed", () => {
+    expect(
+      formatEventLabel({
+        type: "agent.tool_completed",
+        data: { tool: "calculator", expression: "12 * 3", ok: true, result: 36 },
+      }),
+    ).toBe("Finished calculator — result: 36");
+  });
+
+  it("formats agent.tool_started for generate_text_file", () => {
+    expect(
+      formatEventLabel({
+        type: "agent.tool_started",
+        data: { tool: "generate_text_file", filename: "notes.txt" },
+      }),
+    ).toBe("Started generate text file: notes.txt");
+  });
+
+  it("formats a successful generate_text_file agent.tool_completed", () => {
+    expect(
+      formatEventLabel({
+        type: "agent.tool_completed",
+        data: { tool: "generate_text_file", filename: "notes.txt", ok: true },
+      }),
+    ).toBe("Finished generate text file — saved notes.txt");
+  });
+
   it("falls back to a generic label for an unrecognized type", () => {
     expect(
       formatEventLabel({

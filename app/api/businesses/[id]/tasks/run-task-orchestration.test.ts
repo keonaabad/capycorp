@@ -79,9 +79,17 @@ function createPrismaMock(agents: AgentRecord[], taskId: string) {
     return Promise.resolve({ id: `evt-${events.length}`, ...args.data });
   });
 
+  const artifacts: Record<string, unknown>[] = [];
+  const artifactCreate = vi.fn((args: { data: Record<string, unknown> }) => {
+    const record = { id: `artifact-${artifacts.length + 1}`, ...args.data };
+    artifacts.push(record);
+    return Promise.resolve(record);
+  });
+
   const prisma = {
     agent: { update: agentUpdate },
     agentEvent: { create: agentEventCreate },
+    artifact: { create: artifactCreate },
     $transaction: vi.fn((fn: (tx: unknown) => unknown) =>
       fn({
         agent: { update: agentUpdate },
@@ -117,6 +125,7 @@ function createPrismaMock(agents: AgentRecord[], taskId: string) {
     getTask: () => task,
     getSubtasks: () => subtasks,
     getEvents: () => events,
+    getArtifacts: () => artifacts,
   };
 }
 
@@ -295,6 +304,119 @@ describe("runTaskOrchestration", () => {
         ok: true,
         resultCount: 1,
       },
+    });
+  });
+
+  it("drives the agent through using_tool and logs events when a subtask calculates", async () => {
+    const agents = makeAgents("biz-1");
+    currentPrismaMock = createPrismaMock(agents, "task-1");
+    const manager = agents[0];
+    const agentsByRole = new Map(agents.map((a) => [a.role, a]));
+
+    planTaskMock.mockResolvedValue([
+      { role: "researcher", title: "Add up the totals", description: "..." },
+    ]);
+    let observedStateDuringCalculate: string | undefined;
+    performSubtaskWorkMock.mockImplementation(
+      async (
+        _subtask: unknown,
+        hooks: {
+          onCalculate: (
+            expression: string,
+            run: () => Promise<number>,
+          ) => Promise<number>;
+        },
+      ) => {
+        await hooks.onCalculate("2 + 2", async () => {
+          observedStateDuringCalculate =
+            currentPrismaMock.agentMap.get("agent-researcher")?.state;
+          return 4;
+        });
+        return "Done.";
+      },
+    );
+
+    await runTaskOrchestration(
+      "task-1",
+      manager as never,
+      agentsByRole as never,
+      "Ship a pricing page",
+    );
+
+    expect(observedStateDuringCalculate).toBe("using_tool");
+    expect(currentPrismaMock.agentMap.get("agent-researcher")?.state).toBe(
+      "completed",
+    );
+
+    const events = currentPrismaMock.getEvents();
+    const completed = events.find(
+      (e) => (e as { type: string }).type === "agent.tool_completed",
+    );
+    expect(completed).toMatchObject({
+      data: { tool: "calculator", expression: "2 + 2", ok: true, result: 4 },
+    });
+  });
+
+  it("drives the agent through using_tool, persists an Artifact, and logs events when a subtask generates a file", async () => {
+    const agents = makeAgents("biz-1");
+    currentPrismaMock = createPrismaMock(agents, "task-1");
+    const manager = agents[0];
+    const agentsByRole = new Map(agents.map((a) => [a.role, a]));
+
+    planTaskMock.mockResolvedValue([
+      { role: "designer", title: "Write a summary", description: "..." },
+    ]);
+    let observedStateDuringSave: string | undefined;
+    performSubtaskWorkMock.mockImplementation(
+      async (
+        _subtask: unknown,
+        hooks: {
+          onGenerateFile: (
+            file: { filename: string; content: string },
+            run: () => Promise<{ filename: string; content: string }>,
+          ) => Promise<{ filename: string; content: string }>;
+        },
+      ) => {
+        await hooks.onGenerateFile(
+          { filename: "notes.txt", content: "Some findings." },
+          async () => {
+            observedStateDuringSave =
+              currentPrismaMock.agentMap.get("agent-designer")?.state;
+            return { filename: "notes.txt", content: "Some findings." };
+          },
+        );
+        return "Done.";
+      },
+    );
+
+    await runTaskOrchestration(
+      "task-1",
+      manager as never,
+      agentsByRole as never,
+      "Ship a pricing page",
+    );
+
+    expect(observedStateDuringSave).toBe("using_tool");
+    expect(currentPrismaMock.agentMap.get("agent-designer")?.state).toBe(
+      "completed",
+    );
+
+    const artifacts = currentPrismaMock.getArtifacts();
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]).toMatchObject({
+      businessId: "biz-1",
+      taskId: "task-1",
+      agentId: "agent-designer",
+      filename: "notes.txt",
+      content: "Some findings.",
+    });
+
+    const events = currentPrismaMock.getEvents();
+    const completed = events.find(
+      (e) => (e as { type: string }).type === "agent.tool_completed",
+    );
+    expect(completed).toMatchObject({
+      data: { tool: "generate_text_file", filename: "notes.txt", ok: true },
     });
   });
 });

@@ -1,10 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { SignOutButton } from "@/components/auth/sign-out-button";
 import { BusinessOffice } from "@/components/office/business-office";
-import { ActivityFeed } from "@/components/business/activity-feed";
 import { ROLE_ORDER, type AgentRole } from "@/lib/simulation/office-layout";
 import type { BackendAgentSeed } from "@/lib/simulation/adapter";
 
@@ -13,6 +10,8 @@ export default async function BusinessPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // Auth is already checked once by app/business/layout.tsx — this page
+  // only needs the session for the ownership check on the query below.
   const session = await auth();
   if (!session?.user) {
     redirect("/sign-in");
@@ -25,7 +24,7 @@ export default async function BusinessPage({
   });
 
   if (!business) {
-    redirect("/");
+    redirect("/business");
   }
 
   const roleRank = new Map<AgentRole, number>(
@@ -58,33 +57,21 @@ export default async function BusinessPage({
     include: { agent: { select: { name: true, role: true } } },
   });
 
+  const artifacts = await prisma.artifact.findMany({
+    where: { businessId: business.id },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    include: { agent: { select: { name: true, role: true } } },
+  });
+
   return (
-    <div className="flex flex-1 flex-col bg-[#0e0b08] text-white">
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-12">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <Link href="/" className="text-xs text-lime-300 hover:underline">
-              ← All businesses
-            </Link>
-            <h1 className="text-2xl font-semibold sm:text-3xl">
-              {business.name}
-            </h1>
-            {business.industry ? (
-              <p className="text-sm text-white/60">{business.industry}</p>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-3 font-mono text-xs text-white/40">
-            <span>{session.user.email}</span>
-            <SignOutButton />
-          </div>
-        </header>
-        <BusinessOffice
-          key={agentsFingerprint}
-          businessId={business.id}
-          agents={agents}
-        />
-        <ActivityFeed events={events} />
-      </main>
-    </div>
+    <BusinessOffice
+      key={agentsFingerprint}
+      businessId={business.id}
+      businessName={business.name}
+      agents={agents}
+      events={events}
+      artifacts={artifacts}
+    />
   );
 }

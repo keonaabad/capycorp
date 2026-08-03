@@ -46,6 +46,68 @@ async function driveAgentStates(
   return runtime;
 }
 
+/**
+ * Wraps one real tool execution with the using_tool drive / AgentEvent
+ * pair / drive-back-to-working shape every tool needs identically —
+ * `onWebSearch`, `onCalculate`, and `onGenerateFile` each become a short
+ * call into this instead of three copies of the same ~25 lines. Fired
+ * once per *actual* tool call — not once per subtask — so working<->
+ * using_tool visibly cycles for every real invocation, matching what's
+ * actually happening rather than a single decorative blip.
+ */
+function createToolRunner(
+  agentRow: Agent,
+  taskId: string,
+  getRuntime: () => AgentRuntimeState,
+  setRuntime: (runtime: AgentRuntimeState) => void,
+) {
+  return async function runWithToolEvent<T>(
+    tool: string,
+    startData: Record<string, unknown>,
+    run: () => Promise<T>,
+    describeSuccess: (result: T) => Record<string, unknown>,
+  ): Promise<T> {
+    setRuntime(await driveAgentStates(agentRow, getRuntime(), ["using_tool"]));
+    await prisma.agentEvent.create({
+      data: {
+        businessId: agentRow.businessId,
+        agentId: agentRow.id,
+        taskId,
+        type: "agent.tool_started",
+        data: { tool, ...startData },
+      },
+    });
+    try {
+      const result = await run();
+      await prisma.agentEvent.create({
+        data: {
+          businessId: agentRow.businessId,
+          agentId: agentRow.id,
+          taskId,
+          type: "agent.tool_completed",
+          data: { tool, ...startData, ok: true, ...describeSuccess(result) },
+        },
+      });
+      return result;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : `${tool} failed.`;
+      await prisma.agentEvent.create({
+        data: {
+          businessId: agentRow.businessId,
+          agentId: agentRow.id,
+          taskId,
+          type: "agent.tool_completed",
+          data: { tool, ...startData, ok: false, error: message },
+        },
+      });
+      throw error;
+    } finally {
+      setRuntime(await driveAgentStates(agentRow, getRuntime(), ["working"]));
+    }
+  };
+}
+
 async function runSubtask(
   taskId: string,
   agentRow: Agent,
@@ -65,6 +127,14 @@ async function runSubtask(
     current: agentRow.state,
     resumeState: agentRow.resumeState,
   };
+  const runWithToolEvent = createToolRunner(
+    agentRow,
+    taskId,
+    () => runtime,
+    (next) => {
+      runtime = next;
+    },
+  );
 
   try {
     runtime = await driveAgentStates(agentRow, runtime, [
@@ -74,55 +144,33 @@ async function runSubtask(
       "working",
     ]);
     const result = await performSubtaskWork(planned, {
-      // Fired once per *actual* search the model runs — not once per
-      // subtask — so working<->using_tool visibly cycles for every real
-      // call, matching what's actually happening rather than a single
-      // decorative blip.
-      async onWebSearch(query, run) {
-        runtime = await driveAgentStates(agentRow, runtime, ["using_tool"]);
-        await prisma.agentEvent.create({
-          data: {
-            businessId: agentRow.businessId,
-            agentId: agentRow.id,
-            taskId,
-            type: "agent.tool_started",
-            data: { tool: "web_search", query },
-          },
-        });
-        try {
-          const results = await run();
-          await prisma.agentEvent.create({
-            data: {
-              businessId: agentRow.businessId,
-              agentId: agentRow.id,
-              taskId,
-              type: "agent.tool_completed",
+      onWebSearch: (query, run) =>
+        runWithToolEvent("web_search", { query }, run, (results) => ({
+          resultCount: results.length,
+        })),
+      onCalculate: (expression, run) =>
+        runWithToolEvent("calculator", { expression }, run, (result) => ({
+          result,
+        })),
+      onGenerateFile: (file, run) =>
+        runWithToolEvent(
+          "generate_text_file",
+          { filename: file.filename },
+          async () => {
+            const saved = await run();
+            await prisma.artifact.create({
               data: {
-                tool: "web_search",
-                query,
-                ok: true,
-                resultCount: results.length,
+                businessId: agentRow.businessId,
+                taskId,
+                agentId: agentRow.id,
+                filename: saved.filename,
+                content: saved.content,
               },
-            },
-          });
-          return results;
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Web search failed.";
-          await prisma.agentEvent.create({
-            data: {
-              businessId: agentRow.businessId,
-              agentId: agentRow.id,
-              taskId,
-              type: "agent.tool_completed",
-              data: { tool: "web_search", query, ok: false, error: message },
-            },
-          });
-          throw error;
-        } finally {
-          runtime = await driveAgentStates(agentRow, runtime, ["working"]);
-        }
-      },
+            });
+            return saved;
+          },
+          () => ({}),
+        ),
     });
     await prisma.subtask.update({
       where: { id: subtask.id },

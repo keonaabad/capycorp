@@ -1,83 +1,73 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { SignOutButton } from "@/components/auth/sign-out-button";
-import { CreateBusinessForm } from "@/components/business/create-business-form";
-import { ArchiveBusinessButton } from "@/components/business/archive-business-button";
+import { WaitlistForm } from "@/components/marketing/waitlist-form";
+import { OfficeDemoPreview } from "@/components/office/office-demo-preview";
 
-export default async function Home() {
+export default async function LandingPage() {
   const session = await auth();
-  if (!session?.user) {
-    redirect("/sign-in");
+  if (session?.user) {
+    redirect("/business");
   }
 
-  const businesses = await prisma.business.findMany({
-    where: { userId: session.user.id, archived: false },
-    orderBy: { createdAt: "desc" },
-  });
-
   return (
-    <div className="flex flex-1 flex-col bg-[#0e0b08] text-white">
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-6 py-12">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <p className="font-mono text-xs uppercase tracking-widest text-lime-300">
-              CapyCorp
-            </p>
-            <h1 className="text-2xl font-semibold sm:text-3xl">
-              Your businesses
-            </h1>
-            <p className="max-w-2xl text-sm text-white/60">
-              Each business gets its own office and starter team of four agents.
-              Select one to open its office, or start a new one below.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 font-mono text-xs text-white/40">
-            <span>{session.user.email}</span>
-            <SignOutButton />
-          </div>
-        </header>
-
-        <div className="space-y-3">
-          {businesses.length === 0 ? (
-            <p
-              className="rounded-md border border-dashed border-white/15 p-4 text-sm text-white/50"
-              data-testid="no-businesses"
-            >
-              No businesses yet — create one below.
-            </p>
-          ) : (
-            businesses.map((business) => (
-              <div
-                key={business.id}
-                className="flex items-center justify-between rounded-md border border-white/10 p-4"
-                data-testid={`business-${business.id}`}
-              >
-                <Link
-                  href={`/business/${business.id}`}
-                  className="space-y-1 hover:text-lime-300"
-                >
-                  <p className="font-medium">{business.name}</p>
-                  {business.industry ? (
-                    <p className="text-xs text-white/40">{business.industry}</p>
-                  ) : null}
-                </Link>
-                <ArchiveBusinessButton businessId={business.id} />
-              </div>
-            ))
-          )}
+    <div className="flex flex-1 flex-col bg-page text-ink">
+      <header className="border-b border-border">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-6 py-4">
+          <span className="text-sm font-semibold text-ink">CapyCorp</span>
+          <Link href="/sign-in" className="text-sm text-muted hover:text-accent">
+            Sign in
+          </Link>
         </div>
+      </header>
 
-        <CreateBusinessForm />
+      <main className="flex-1">
+        <section className="mx-auto flex w-full max-w-2xl flex-col items-center gap-5 px-6 py-20 text-center">
+          <p className="font-mono text-xs uppercase tracking-widest text-accent">
+            An AI agent ecosystem
+          </p>
+          <h1 className="text-3xl font-semibold text-balance sm:text-4xl">
+            Build your own AI company and watch it work.
+          </h1>
+          <p className="max-w-xl text-base text-muted">
+            CapyCorp is a visual multi-agent orchestration platform. Give
+            your team a goal in plain language — a manager capybara plans
+            the work and hands it off to the rest of your office, and you
+            watch them research, design, and build in real time, driven by
+            real Claude calls, not a canned animation.
+          </p>
+          <div className="flex w-full flex-col items-center gap-3 pt-2">
+            <WaitlistForm />
+            <Link
+              href="/sign-in"
+              className="text-xs text-muted hover:text-accent"
+            >
+              Already have access? Sign in
+            </Link>
+          </div>
+        </section>
 
-        <Link
-          href="/demo"
-          className="text-xs text-white/40 hover:text-lime-300"
-        >
-          Or view the Phase 1 scripted demo →
-        </Link>
+        <section className="border-t border-border py-14">
+          <div className="mx-auto w-full max-w-5xl px-6">
+            <h2 className="mb-1 text-lg font-semibold">See it in action</h2>
+            <p className="mb-6 text-sm text-muted">
+              This is the real office simulation, running a scripted demo
+              task on a loop — a manager delegating research, design, and
+              engineering work, an agent using a real tool, and a final
+              approval, end to end. A live account gets its own office
+              backed by a real manager, engineer, researcher, and designer.
+            </p>
+            <OfficeDemoPreview />
+          </div>
+        </section>
       </main>
+
+      <footer className="border-t border-border px-6 py-6 text-center text-xs text-muted">
+        CapyCorp ·{" "}
+        <Link href="/sign-in" className="hover:text-accent">
+          Sign in
+        </Link>
+      </footer>
     </div>
   );
 }

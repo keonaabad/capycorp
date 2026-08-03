@@ -1,26 +1,46 @@
 @import "tailwindcss";
 
+/*
+ * Dark, ChatGPT/Claude-adjacent palette — reversing "Slate and brass"'s
+ * light theme per direct feedback once this became a resume case study.
+ * --sidebar is one shade darker than --page, giving the persistent
+ * sidebar/right-rail chrome (components/chrome/sidebar.tsx,
+ * business-office.tsx's right rail) visual depth against the main
+ * content area, the same way ChatGPT/Claude's own chrome does. --accent
+ * is the same gold already used inside the office canvas itself (the
+ * manager's tie, the inbox tray) — deliberate continuity between the
+ * chrome and the pixel-art scene it surrounds.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --page: #212121;
+  --sidebar: #171717;
+  --surface: #2a2a2a;
+  --ink: #ececec;
+  --muted: #9b9b9b;
+  --accent: #d4a24c;
+  --accent-ink: #2a1d14;
+  --border: #3a3a3a;
+  --active: #333333;
+  --danger: #e35d50;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-page: var(--page);
+  --color-sidebar: var(--sidebar);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-border: var(--border);
+  --color-active: var(--active);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans), -apple-system, sans-serif;
 }

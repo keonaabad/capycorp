@@ -46,35 +46,35 @@ export function CreateBusinessForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded-md border border-white/10 p-4"
+      className="space-y-3 rounded-lg border border-border bg-surface p-4"
       data-testid="create-business-form"
     >
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-white/50">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
         Start a new business
       </h2>
-      <label className="block text-[11px] uppercase tracking-wide text-white/40">
+      <label className="block text-[11px] uppercase tracking-wide text-muted">
         Name
         <input
-          className="mt-1 w-full rounded border border-white/15 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-lime-300"
+          className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="e.g. Acme Widgets"
         />
       </label>
-      <label className="block text-[11px] uppercase tracking-wide text-white/40">
+      <label className="block text-[11px] uppercase tracking-wide text-muted">
         Industry (optional)
         <input
-          className="mt-1 w-full rounded border border-white/15 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-lime-300"
+          className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           value={industry}
           onChange={(event) => setIndustry(event.target.value)}
           placeholder="e.g. E-commerce"
         />
       </label>
-      {error ? <p className="text-xs text-red-400">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
       <button
         type="submit"
         disabled={submitting}
-        className="rounded border border-lime-300/60 px-3 py-1.5 text-xs font-medium text-lime-300 transition-colors hover:bg-lime-300/10 disabled:opacity-40"
+        className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-40"
       >
         {submitting ? "Creating…" : "Create business"}
       </button>

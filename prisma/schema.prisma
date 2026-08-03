@@ -1,8 +1,11 @@
 // Phase 2 schema: just enough to persist businesses, agents, and tasks and
 // show an activity timeline (proposal section 17, Phase 2 deliverables).
-// Subtask, AgentMessage, Artifact, ToolDefinition, and AgentToolPermission
-// (proposal section 13) are deferred to Phase 3, when real orchestration
-// actually needs them — see docs/architecture.md.
+// Subtask (Phase 3, real orchestration) and Artifact (the tool-registry
+// milestone's text-file-generation tool) have since shipped — see
+// docs/architecture.md. AgentMessage, ToolDefinition, and
+// AgentToolPermission (proposal section 13) are still deferred: a generic
+// multi-tool permission system remains premature for the handful of
+// concrete tools that actually exist.
 
 generator client {
   provider = "prisma-client"
@@ -37,6 +40,7 @@ model Business {
   agents      Agent[]
   tasks       Task[]
   events      AgentEvent[]
+  artifacts   Artifact[]
 }
 
 // Lowercase to match lib/simulation/office-layout.ts's AgentRole union —
@@ -82,6 +86,7 @@ model Agent {
   updatedAt    DateTime     @updatedAt
   events       AgentEvent[]
   subtasks     Subtask[]
+  artifacts    Artifact[]
 }
 
 enum TaskStatus {
@@ -109,6 +114,7 @@ model Task {
   completedAt DateTime?
   events      AgentEvent[]
   subtasks    Subtask[]
+  artifacts   Artifact[]
 }
 
 // Deferred since Phase 1/2 (see this file's header comment) until real
@@ -147,4 +153,31 @@ model AgentEvent {
   createdAt  DateTime @default(now())
 
   @@index([businessId, createdAt])
+}
+
+// A generated deliverable from the generate_text_file tool
+// (lib/ai/tools/generate-file.ts) — text-only, no blob storage needed for
+// the scope this tool actually covers.
+model Artifact {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  taskId     String?
+  task       Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agentId    String?
+  agent      Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  filename   String
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, createdAt])
+}
+
+// Pre-launch email capture on the public landing page — deliberately not
+// linked to User (most rows here will never become an account) and kept
+// to exactly the fields a waitlist needs, not a marketing-CRM schema.
+model WaitlistEntry {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
 }

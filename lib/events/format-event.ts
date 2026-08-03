@@ -31,25 +31,36 @@ export function formatEventLabel(event: EventInput): string {
 
     case "agent.tool_started": {
       if (!isRecord(data)) return FALLBACK_LABEL;
-      const { tool, query } = data;
-      if (typeof tool !== "string" || typeof query !== "string") {
-        return FALLBACK_LABEL;
-      }
-      return `Started ${tool.replace(/_/g, " ")}: "${query}"`;
+      const { tool, query, expression, filename } = data;
+      if (typeof tool !== "string") return FALLBACK_LABEL;
+      const label = tool.replace(/_/g, " ");
+      if (typeof query === "string") return `Started ${label}: "${query}"`;
+      if (typeof expression === "string")
+        return `Started ${label}: ${expression}`;
+      if (typeof filename === "string") return `Started ${label}: ${filename}`;
+      return `Started ${label}`;
     }
 
     case "agent.tool_completed": {
       if (!isRecord(data)) return FALLBACK_LABEL;
-      const { tool, ok, resultCount, error } = data;
+      const { tool, ok, resultCount, result, filename, error } = data;
       if (typeof tool !== "string" || typeof ok !== "boolean") {
         return FALLBACK_LABEL;
       }
       const label = tool.replace(/_/g, " ");
-      if (ok) {
-        const count = typeof resultCount === "number" ? resultCount : "some";
-        return `Finished ${label} — found ${count} result${count === 1 ? "" : "s"}`;
+      if (!ok) {
+        return `${label} failed${typeof error === "string" ? `: ${error}` : ""}`;
       }
-      return `${label} failed${typeof error === "string" ? `: ${error}` : ""}`;
+      if (typeof resultCount === "number") {
+        return `Finished ${label} — found ${resultCount} result${resultCount === 1 ? "" : "s"}`;
+      }
+      if (typeof result === "number") {
+        return `Finished ${label} — result: ${result}`;
+      }
+      if (typeof filename === "string") {
+        return `Finished ${label} — saved ${filename}`;
+      }
+      return `Finished ${label}`;
     }
 
     default:

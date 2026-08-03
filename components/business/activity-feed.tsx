@@ -25,7 +25,7 @@ export function ActivityFeed({
   if (events.length === 0) {
     return (
       <p
-        className="rounded-md border border-dashed border-white/15 p-4 text-sm text-white/50"
+        className="rounded-lg border border-dashed border-border p-4 text-sm text-muted"
         data-testid="no-activity"
       >
         No activity yet — submit a goal or drive a transition to see it here.
@@ -34,8 +34,11 @@ export function ActivityFeed({
   }
 
   return (
-    <div className="space-y-3" data-testid="activity-feed">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-white/50">
+    <div
+      className="space-y-3 rounded-lg border border-border bg-surface p-4"
+      data-testid="activity-feed"
+    >
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
         Activity
       </h2>
       <ul className="space-y-2">
@@ -44,17 +47,17 @@ export function ActivityFeed({
           return (
             <li
               key={event.id}
-              className="flex items-baseline gap-2 border-b border-white/5 pb-2 text-sm"
+              className="flex items-baseline gap-2 border-b border-border pb-2 text-sm last:border-b-0 last:pb-0"
             >
-              <span className="shrink-0 font-mono text-[11px] text-white/30">
+              <span className="shrink-0 font-mono text-[11px] text-muted">
                 {event.createdAt.toLocaleTimeString()}
               </span>
               {event.agent ? (
-                <span className="shrink-0 font-mono text-xs text-white/60">
+                <span className="shrink-0 font-mono text-xs text-ink">
                   {event.agent.name}
                 </span>
               ) : null}
-              <span className="truncate text-white/80" title={label}>
+              <span className="truncate text-ink/80" title={label}>
                 {label}
               </span>
             </li>

@@ -584,12 +584,456 @@ No live mid-task-run streaming of new events — the office canvas already
 owns "watch it happen live"; this is a history log, refreshed the same way
 the rest of the page already refreshes. No new event types.
 
-## 17. Recommended next milestone
+## 17. Polish pass: pixel art, chrome, and a landing page — done
 
-A real tool registry beyond web search — calculator, structured JSON
-output, text file generation — is the one piece of the original Phase 3
-proposal scope still unbuilt. Alternatively, a polish pass (real pixel art
-replacing the placeholder sprites, a landing page before the sign-in wall)
-would raise the portfolio ceiling without touching backend logic. Either
-is reasonable next; there's no longer a "the data exists but nothing shows
-it" gap forcing the choice the way the activity feed did.
+Picked over the other option named in the previous version of this section
+(a real tool registry) — this one raised the portfolio ceiling without
+touching backend logic, and unlike the tool registry it's genuinely
+underspecified until a human reacts to concrete visuals, so it was worth
+doing first while the rest of the app is stable.
+
+### The direction was chosen from options, not guessed
+
+Before writing any component code, three chrome/palette directions and two
+pixel-art rendering styles were mocked up as a standalone reviewable
+artifact and shown to the user, grounded directly in `product-proposal.md`
+section 5's own visual brief ("cozy professional office... friendly but
+not childish... restrained palette... clean modern application chrome").
+Chosen: **Slate and brass** chrome (cool light-gray surfaces, a brass
+accent) and **soft-shaded** pixel art (banded light-to-shadow shading, no
+outline) over a warmer paper palette, a dark ink-rail palette, and a
+flat-outlined retro art style. Worth naming what this replaced: the app's
+entire chrome — nav, forms, dashboard — had been a near-black background
+with lime-green monospace accents since Phase 1, closer to a hacker
+terminal than the brief it was supposedly built against.
+
+### Design tokens, not per-component hex values
+
+`app/globals.css` defines the palette once as CSS custom properties
+(`--page`, `--surface`, `--ink`, `--muted`, `--accent`, `--accent-ink`,
+`--border`, `--active`, `--danger`), mapped into Tailwind v4's `@theme
+inline` block exactly the way the scaffold's original `--background`/
+`--foreground` pair already did — so `bg-page`, `text-accent`, etc. are
+real Tailwind utilities, not arbitrary-value hex littered across every
+component. Deliberately a single fixed theme with no dark-mode variant:
+this app has never had a theme toggle, and the old scheme wasn't a
+dark-mode adaptation of anything to begin with, just the only theme that
+existed.
+
+### Real pixel art, still hand-authored — no external assets
+
+Per the proposal's originality rule (section 5: no copied sprites or
+assets), `components/office/capybara-sprite.ts` draws each role onto a
+tiny `20x22` canvas using plain `fillRect`/`clearRect` calls — a
+`roundedRect` helper that fills a rect and then clears its four corner
+pixels, rather than hundreds of hand-placed per-pixel coordinates. All
+four roles share one head/fur/face function (same species, per the
+proposal's character sheet); only the outfit-drawing function differs
+per role, and only the tie color is a fixed constant — every garment
+shade is computed from the role's existing `accentColor`
+(`lib/simulation/office-layout.ts`) via a `tint()` helper, so the role
+color stays defined in exactly one place.
+
+`office-canvas.tsx` wraps that canvas in a Pixi `Texture` with
+`scaleMode: "nearest"` and displays it via `Sprite` instead of the old
+`Graphics`-built rounded-rect blob — nearest-neighbor sampling is what
+keeps the upscaled result crisp instead of blurring back into a
+placeholder-looking shape. The office floor, desks, meeting table, and
+inbox got the same warm-wood retint (previously near-black) so the
+interior itself reads as "cozy office," independent of the surrounding
+app chrome.
+
+### A real landing page, not just a restyled gate
+
+`app/page.tsx` was the authenticated dashboard since Phase 2 (redirecting
+straight to `/sign-in` otherwise) — it's now a public marketing page, and
+the dashboard moved to `app/dashboard/page.tsx` unchanged in behavior.
+The landing page's "see it in action" section embeds the existing
+`OfficeExperience` component directly — the same self-contained,
+local-adapter scripted demo `/demo` already used, requiring no backend
+and no auth. Reusing it rather than building a new hero animation meant
+the landing page's centerpiece is the actual product running, not a
+description of it.
+
+Every redirect target that pointed at `/` (sign-in, sign-up, the
+business-not-found case, `auth.ts`'s post-login destination via each
+page's own `router.push`) now points at `/dashboard`. `tests/e2e/auth-gate.spec.ts`
+was rewritten to match: it now asserts the root shows the public landing
+page instead of redirecting, and that `/dashboard` (not `/`) is the
+gated route.
+
+### What this didn't do
+
+No dark-mode toggle (see above — the app has never had one). No new
+pixel-art states beyond the existing idle/working/etc. state machine —
+only the sprite's *appearance* changed, not what drives it. No animation
+polish on the landing page itself beyond what `OfficeExperience` already
+does. No real tool registry — still the one piece of the original Phase 3
+proposal scope left unbuilt.
+
+## 18. Office v2: walled rooms, doors, and walk animation — done
+
+The previous milestone made the office scene's *characters* real pixel
+art; this one does the same for the *scene* itself. The user shared a
+top-down pixel-office reference image and asked for each capybara to have
+its own room and for real walking animation, not just position
+interpolation. Two scope calls, made explicit before writing code and
+confirmed with the user: the reference is a specific paid tileset asset,
+so this builds original room/prop art in the same top-down genre rather
+than copying it (`product-proposal.md` §5's originality rule again); and
+the capybara sprites themselves keep last milestone's front-facing
+soft-shaded look rather than being re-angled to a literal top-down view —
+"top view" is the room layout, not a character redesign.
+
+### Position was already a pure function of state — that's what made this tractable
+
+`destinationForState()` has never stored position on the adapter or
+backend; it derives a point purely from `(role, state)`, computed
+client-side. Adding walls meant that single point was no longer enough —
+a straight line from a desk to the meeting table now cuts through a wall —
+but the fix stayed entirely inside `lib/simulation/office-layout.ts` and
+`office-canvas.tsx`. No adapter, API route, or Prisma schema changed.
+
+`office-layout.ts` gained `OfficeZone` (`AgentRole | "hallway"` — the
+existing role type doubles as the room identifier, no separate enum),
+`zoneForState()`, and `pathTo()`. `pathTo` returns a single-point path
+(exactly today's behavior) when the destination is already in the
+caller's current zone — the common case, since most transitions stay
+inside one's own room — and only inserts door/hallway waypoints when
+crossing rooms. `needs_approval` always resolves to the **manager's**
+zone regardless of whose task it is, since the inbox lives at a side
+table inside the manager's room, not a generic prop floating in the
+hallway — an agent going for approval now visibly leaves its own room and
+walks into someone else's.
+
+### The recompute guard that avoids a mid-walk backtrack
+
+`office-canvas.tsx`'s `SpriteRig` replaced its single `target` point with
+a `path` queue and a `zone` (which room it's currently standing in, once
+`path` empties). The path is only recomputed when `state !== rig.lastState` —
+reusing the guard already in place for the completion-flash effect —
+never on every snapshot emission. This isn't cosmetic: a snapshot fires
+on every store change, including an unrelated task-text keystroke: if a
+new path were computed mid-walk from the stale `fromZone` the sprite
+hadn't actually reached yet, the sprite would replay already-passed
+waypoints and visibly backtrack.
+
+### Walk animation reused the sprite pipeline instead of adding a new one
+
+`capybara-sprite.ts`'s grid is `20x22`, but every role's art stops at row
+20 — row 21 was unused headroom. `drawCapybaraSprite` gained a `frame: 0 | 1`
+parameter that draws two small feet there, offset between frames; that's
+the entire walk cycle, no sprite-sheet system needed. Facing flips via
+`body.scale.x = facing * SPRITE_SCALE` based on the current waypoint's
+`dx` sign, ignoring small `dx` so a vertical-only leg of a path (walking
+straight through a door) doesn't flicker between facings.
+
+### A real perf regression, caught by a flaky test, fixed by laziness
+
+Building both walk-cycle textures for all 4 sprites eagerly at mount (8
+canvas draws + GPU texture uploads, up from 4 before this milestone)
+added enough one-time synchronous main-thread work to make
+`tests/e2e/office.spec.ts`'s tight-timing scripted-demo test fail
+consistently under this environment's default 4-parallel-worker
+Playwright config — not by a little; it went from "occasionally flaky"
+(confirmed present before this milestone too) to "fails every parallel
+run." Fixed by building only the standing-frame texture eagerly and the
+walk frame lazily, the first time an agent actually starts moving,
+spreading that cost out instead of paying all of it at once at mount.
+Confirmed the remaining flakiness is pre-existing worker contention, not
+a regression, by running the full suite with `--workers=1`: passes
+reliably and noticeably faster per test than any parallel run.
+
+### Room decor is original and deliberately modest
+
+`components/office/office-decor.ts` draws walls (as wall segments split
+around each door's gap, not stroked rects with a mask), a shared hallway
+with the meeting table, and a couple of signature props per room —
+bookshelf and inbox tray for the manager, an oversized monitor and server
+rack for the engineer, a larger bookshelf for the researcher, an easel
+and plant for the designer. This is iconographic, not a tile-art
+recreation of the reference image — see the scope note above.
+
+### What this didn't do
+
+No character redesign (see above — a deliberate, stated scope call, not
+an oversight). No true pathfinding — `pathTo`'s waypoints are a fixed,
+hand-designed route per zone pair, not a general navmesh; this holds as
+long as the room graph stays this simple (one hallway, one door per
+room). No multi-floor buildings (proposal's Phase 5, unrelated). No real
+tool registry — still the one piece of the original Phase 3 proposal
+scope left unbuilt.
+
+## 19. Tool registry: calculator, text file generation, structured output — done
+
+The last piece of `product-proposal.md` §7's MVP tool list (web search,
+calculator, text file generation, structured JSON output, internal
+knowledge retrieval — the last one wasn't asked for and stays unbuilt).
+Same discipline as the web-search milestone: concrete typed hooks per
+tool, not a dynamic registry — "avoid a generic multi-tool permission
+system" has been the stated position since that milestone, and four
+concrete tools still doesn't change that math.
+
+### Calculator: a hand-written parser, not `eval`
+
+`lib/ai/tools/calculator.ts`'s `calculate()` is a small recursive-descent
+parser (`+ - * / % ( )`, unary sign, decimals) — deliberately not
+`eval()`/`new Function()`, which would let a model-controlled string
+execute arbitrary JavaScript. Pure and fully unit-tested, including
+injection-shaped input (`"process.exit()"`, `"1; DROP TABLE users;"`)
+that should throw rather than do anything.
+
+### Text file generation needed a table `docs/architecture.md` had already named
+
+The Phase 2 schema comment has said "Artifact... deferred to Phase 3,
+when real orchestration actually needs them" since that phase — this is
+that need arriving. `Artifact` (migration `20260803064914_add_artifact`)
+stores generated files as plain text rows, no blob storage, matching the
+tool's actual scope. `lib/ai/tools/generate-file.ts`'s `prepareTextFile()`
+validates the filename against a small whitelist and caps content length —
+Prisma-free, same boundary `web-search.ts` already established, with the
+real `prisma.artifact.create` living in `run-task-orchestration.ts`'s hook
+instead. A new `ArtifactList` component (`components/business/artifact-list.tsx`)
+lists them on the business page with a real download link via a `data:`
+URI — no new API route, since the Server Component already has the
+content in hand.
+
+### Structured output is a second way to *finish*, not a mid-loop tool
+
+Unlike the other two, `submit_structured_result` doesn't get the
+using_tool visual treatment. The judgment call, stated plainly rather
+than left implicit: choosing an output *format* isn't "invoking a tool
+right now" the way search/calculate/file-save are, and giving it the same
+treatment would dilute what `using_tool` actually means. When called, it
+short-circuits `performSubtaskWork()` immediately — no `tool_result`
+round-trip needed, since (unlike the other three) there's no reason to
+feed anything back for further reasoning. The validated `{summary, items}`
+still gets flattened to plain text for `Subtask.result` — no schema
+change for this one; a richer structured-data renderer is a real but
+deferred follow-up, the same call this codebase has made at every prior
+milestone with "what this didn't do."
+
+### One shared helper replaced three copies of the same ~25 lines
+
+`run-task-orchestration.ts`'s `onWebSearch` hook used to inline the
+using_tool-drive / `AgentEvent`-pair / drive-back-to-working shape
+directly. Adding two more tools the same way would have meant two more
+copies of it; instead `createToolRunner()` parameterizes that shape once,
+and each hook is now a short call into it — `onGenerateFile`'s is the
+only one that does anything extra (the actual `prisma.artifact.create`,
+after `run()`'s validation succeeds).
+
+### Verified live, not just in unit tests
+
+Unit tests mock the Anthropic client, so they prove the wiring but not
+that a real model actually reaches for these tools unprompted. Ran two
+real goals against a live business with real Claude/Tavily calls: one
+implicitly needing arithmetic ("calculate the average of $12/$15/$18")
+correctly triggered `calculator` (`(12 + 15 + 18) / 3` → `15`, `using_tool`
+cycling visibly, correct event labels); one explicitly asking for a saved
+file correctly triggered `generate_text_file`, persisted a real `Artifact`
+row, and produced a working download link with the actual generated
+content. Both exercised the full path from model tool-call through
+`AgentEvent` logging to the UI, not just the mocked layer.
+
+### What this didn't do
+
+No internal business knowledge retrieval (proposal's own MVP list names
+it, the user didn't ask for it — not everything on a wishlist is worth
+building unprompted). No generic multi-tool permission system
+(`ToolDefinition`/`AgentToolPermission` — still deferred, still the right
+call). No structured-data UI beyond flattened text. No file types beyond
+plain text, no blob/binary storage.
+
+## 20. State visual language: icon bubbles and a carried folder — done
+
+Picked from the options raised after the last milestone — over pushing
+art fidelity further or fixing the multi-agent-overlap bug, both still
+open (see §21). Closes the gap the recommendation named: the product's
+whole pitch is watching agents work without reading text, but `assigned`/
+`planning`/`using_tool`/`completed`/`failed` were still badge-text-only.
+
+### An icon system, not new art per state
+
+`components/office/state-bubble.ts` draws six small glyphs (alert,
+thought, tool, check, cross, pause) as plain Pixi `Graphics` shapes —
+not run through the pixel-art canvas-texture pipeline `capybara-sprite.ts`
+uses. That pipeline exists to make the *character* art crisp at a fixed
+grid resolution; a two-line checkmark or three dots doesn't need it, and
+skipping it means these are cheap to redraw (`drawBubbleGlyph()` clears
+and redraws one `Graphics` object) rather than requiring a new texture
+per icon. `needs_approval` is deliberately the exception: it gets a small
+carried-folder graphic instead of a bubble, matching the proposal's own
+distinct language for that one state ("carry folder to manager") rather
+than folding it into the generic bubble set.
+
+### A real layout bug, caught before it shipped
+
+First placement stacked the bubble directly above the existing badge
+(`y: -54` in the sprite's local space). That clips off the top of the
+canvas for the manager and engineer specifically — their `idlePosition.y`
+is `50`, only 40px below their room's own wall, not enough headroom for
+anything stacked above the badge. Moved beside the head instead
+(`position.set(15, -28)`), which costs no extra headroom since it doesn't
+extend further up than the sprite's own art already does. Caught by doing
+the coordinate math before trusting a screenshot, then confirmed all six
+icons live in the browser afterward — a case where reasoning about the
+existing headroom constraint (established back in the room-layout
+milestone) mattered more than eyeballing it.
+
+### What this didn't do
+
+No animation on the icons themselves (no bounce/fade-in) — they appear
+and disappear with the state, which reads clearly enough at this scale
+to not need more. No bubble for `working`, `waiting`, `walking_to_workstation`,
+or `collaborating` — position and the walk animation already make those
+legible; adding a bubble to every state would be noise, not signal.
+
+## 21. MVP-ready UI: dark theme, real shell, simplified landing — done
+
+Prompted by a concrete near-term goal: this project is going on a resume
+site as a case study, which raises the bar from "functionally correct" to
+"looks like a real product." Three pieces of direct feedback drove this
+milestone: the app read like unstyled HTML/CSS rather than a professional
+site; the business page should adopt the actual ChatGPT/Claude pattern
+(confirmed with the user specifically — one persistent shell, not just a
+visual reskin of the old dashboard-then-business-page structure); and the
+theme should be dark, reversing "Slate and brass" from the first polish
+pass.
+
+### The token system from the first polish pass is what made this a one-pass job
+
+Every component already rendered through semantic classes (`bg-surface`,
+`text-ink`, `border-border`, etc.) rather than hardcoded colors. Flipping
+`globals.css`'s CSS variable values re-themed almost the entire app for
+free — `AgentInspector`, `ActivityFeed`, `ArtifactList`, `TaskComposer`,
+`CreateBusinessForm`, every button and form, all needed zero individual
+edits for the dark theme itself. The actual work was the *shell*, not
+re-skinning components one by one — exactly the payoff that token system
+was built for.
+
+### One persistent shell, not a reskinned dashboard
+
+`app/dashboard/page.tsx` is gone. `app/business/layout.tsx` is now the one
+place that checks auth and fetches the business list — previously
+duplicated across the dashboard and business-detail pages. It renders a
+persistent `components/chrome/sidebar.tsx` (a client component using
+`usePathname()` to highlight the active business, rather than threading
+an active-id prop through the layout tree) alongside `{children}`.
+`app/business/page.tsx` is the "blank new chat" equivalent — a welcome
+screen with `CreateBusinessForm` — and `app/business/[id]/page.tsx` is
+what renders when a business is selected, same as clicking a conversation
+in ChatGPT loads it into the main pane. Next.js's own layout-nesting model
+does the "no full-page flash when switching businesses" part for free:
+`layout.tsx` doesn't re-render on `[id]` navigation, only the page
+segment does.
+
+### The business page itself: canvas dominant, composer as a chat input
+
+`components/office/business-office.tsx` stopped using `OfficeWorkspace`
+(which still fits `/demo`'s different, simpler needs unchanged) and
+composes `OfficeCanvas` + `TaskComposer` + a right rail directly: the
+canvas fills the main column, `TaskComposer` sits pinned at the bottom
+like a chat input rather than just another stacked card, and
+`AgentInspector`/`ArtifactList`/`ActivityFeed` move into a `bg-sidebar`
+right rail matching the left sidebar's depth.
+
+### A deliberate cut: `DevControlPanel` off the real page
+
+It stays exactly where it already earned its keep, `/demo` — manual
+state-override controls sitting next to a page that runs real
+orchestration read like a debug build, not an MVP. This is a functional
+change, not just a layout one, made and flagged explicitly during
+planning rather than discovered as a side effect.
+
+### A real e2e gap this surfaced, not just a route-rename
+
+`tests/e2e/business.spec.ts` used to drive its persistence check by
+clicking `DevControlPanel` buttons — removing that panel from the real
+page broke the test's actual mechanism, not just its target URL. Fixed by
+driving the same transition through `PATCH /api/agents/:id` directly
+(the same route `DevControlPanel` always called under the hood), which
+if anything tests the real persistence guarantee more honestly: it no
+longer depends on a UI control at all, just the API contract. Needed
+`AgentInspector` to expose `data-agent-id` on its root element — a small,
+test-only addition — since nothing in the DOM otherwise surfaces an
+agent's real id.
+
+Also surfaced a synthetic-click timing bug of its own: the rewritten test
+originally reused a `canvas.boundingBox()` captured *before* `page.reload()`,
+then clicked immediately after. Pixi's `setup()` is async, so the canvas
+isn't always ready for hit-testing that fast — fixed by re-fetching the
+bounding box after reload and wrapping the click-and-assert in
+`expect(...).toPass()` so a too-early click retries instead of failing
+outright.
+
+### What this didn't do
+
+No mobile/responsive treatment for the new sidebar shell — desktop-first,
+since this is headed for a case study viewed on a normal screen. No
+changes to the office canvas's own Pixi-rendered colors — a different hue
+family (warm wood vs. neutral dark gray) reads as a distinct "room"
+regardless of the surrounding chrome's theme, confirmed visually rather
+than assumed. No resolution of the still-open art-fidelity question or
+the multi-agent-overlap bug (see below) — this milestone was scoped to
+shell/theme/layout specifically.
+
+## 22. Landing page: real waitlist and an in-depth live demo — done
+
+The dark-shell milestone had simplified the landing page down to a bare
+hero, on the assumption that "simple" meant minimal. Feedback afterward
+clarified that wasn't quite right: for an MVP, "simple" meant one focused
+page, not one stripped of its centerpiece — the live demo needed to come
+back, get richer, and the primary call to action needed to be an actual
+waitlist (a real email capture, not just a styled sign-up button), with
+sign-in de-emphasized to a secondary link rather than removed.
+
+### A real capture, not a decorative form
+
+`WaitlistEntry` (migration `20260803101008_add_waitlist_entry`) is
+deliberately not linked to `User` — most rows here will never become an
+account, so forcing a relation would be modeling for a case that mostly
+doesn't happen. `POST /api/waitlist` upserts with an empty `update`
+rather than checking existence first: resubmitting the same email is a
+success either way, not an error, which also means the response never
+leaks whether an address was already on the list.
+
+### The demo got "more in depth" by being un-simplified, not rebuilt
+
+`DEMO_SCRIPT` (`lib/simulation/demo-script.ts`) already exercised nearly
+every state in the machine — assigned, planning, `using_tool`, `collaborating`,
+`needs_approval`, `completed` — across all four roles; it didn't need new
+content, it needed to be back on the page and given room to be seen. The
+real design decision was *how* to re-embed it: not the same
+`OfficeExperience`/`OfficeWorkspace` combination `/demo` uses, which
+bundles in `DevControlPanel`. A new `components/office/office-demo-preview.tsx`
+auto-plays on mount (no click required — a marketing page benefits from
+showing motion immediately, unlike `/demo`, which is a deliberate
+utility page for a signed-in user to poke at) and renders only
+`OfficeCanvas` + `AgentInspector`. Manual state-override controls have no
+business being exposed to an anonymous visitor — the same reasoning that
+already kept `DevControlPanel` off the real business page, applied here
+for the same reason rather than re-litigated.
+
+### What this didn't do
+
+No admin view of waitlist entries — reading the list back (a query, or
+an export) is real but deferred scope, not needed for the capture itself
+to work. No rate limiting or bot protection on the waitlist endpoint —
+acceptable for a portfolio piece, would need attention before any real
+public traffic. Sign-up/sign-in routes are unchanged and still fully
+reachable (via the secondary "Already have access? Sign in" link and
+sign-in's own "Create one" link) — this de-emphasizes them on the landing
+page, it doesn't gate or remove them.
+
+## 23. Recommended next milestone
+
+Two items still open from a couple of rounds back, now that the shell
+and landing page are both portfolio-ready: pushing art fidelity further
+(the user's own "this isn't the UI I pictured," never fully resolved —
+procedural iteration vs. hand-authored per-pixel sprites vs. real art is
+still a live decision), and the multi-agent-overlap bug (agents sharing a
+destination — the meeting table, the manager's inbox — still stack
+exactly on top of each other). Beyond those: a real approval gate before
+a task runs, or starting the actual resume case study now that the UI is
+at a presentable baseline. Which matters most is the user's call.

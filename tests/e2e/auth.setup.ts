@@ -16,7 +16,7 @@ setup("authenticate", async ({ page, request }) => {
   await page.getByLabel("Email").fill(TEST_EMAIL);
   await page.getByLabel("Password").fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/business");
 
   await page.context().storageState({ path: STORAGE_STATE });
 });

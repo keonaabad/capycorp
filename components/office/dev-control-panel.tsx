@@ -28,11 +28,14 @@ export function DevControlPanel({
   );
 
   return (
-    <div className="space-y-3" data-testid="dev-control-panel">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-white/50">
+    <div
+      className="space-y-3 rounded-lg border border-border bg-surface p-4"
+      data-testid="dev-control-panel"
+    >
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
         Dev control panel
       </h2>
-      <p className="text-xs text-white/40">
+      <p className="text-xs text-muted">
         Manually drives each agent&apos;s state machine. This stands in for real
         backend events until orchestration is wired up.
       </p>
@@ -51,16 +54,16 @@ export function DevControlPanel({
         return (
           <div
             key={agentId}
-            className="rounded-md border border-white/10 p-3"
+            className="rounded-lg border border-border p-3"
             data-testid={`agent-controls-${agentId}`}
           >
             <div className="flex items-center justify-between">
-              <span className="font-mono text-xs text-white/70">
+              <span className="font-mono text-xs text-ink">
                 {runtime.name}{" "}
-                <span className="text-white/40">· {runtime.role}</span>
+                <span className="text-muted">· {runtime.role}</span>
               </span>
               <span
-                className="font-mono text-xs text-lime-300"
+                className="font-mono text-xs text-accent"
                 data-testid={`agent-state-${agentId}`}
               >
                 {runtime.current}
@@ -71,7 +74,7 @@ export function DevControlPanel({
                 <button
                   key={state}
                   type="button"
-                  className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/80 transition-colors hover:border-lime-300 hover:text-lime-300 disabled:opacity-30 disabled:hover:border-white/15 disabled:hover:text-white/80"
+                  className="rounded border border-border px-2 py-1 text-[11px] text-ink/80 transition-colors hover:border-accent hover:text-accent disabled:opacity-30 disabled:hover:border-border disabled:hover:text-ink/80"
                   onClick={() => adapter.setAgentState(agentId, state)}
                   disabled={controlsDisabled}
                 >
@@ -81,7 +84,7 @@ export function DevControlPanel({
               {runtime.current === "paused" ? (
                 <button
                   type="button"
-                  className="rounded border border-lime-300/60 px-2 py-1 text-[11px] text-lime-300 disabled:opacity-30"
+                  className="rounded border border-accent/60 px-2 py-1 text-[11px] text-accent disabled:opacity-30"
                   onClick={() => adapter.resumeAgent(agentId)}
                   disabled={controlsDisabled}
                 >
@@ -90,7 +93,7 @@ export function DevControlPanel({
               ) : (
                 <button
                   type="button"
-                  className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 transition-colors hover:border-amber-300 hover:text-amber-300 disabled:opacity-30"
+                  className="rounded border border-border px-2 py-1 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent disabled:opacity-30"
                   onClick={() => adapter.pauseAgent(agentId)}
                   disabled={
                     controlsDisabled ||
@@ -104,7 +107,7 @@ export function DevControlPanel({
             </div>
             {lastError?.agentId === agentId ? (
               <p
-                className="mt-2 text-[11px] text-red-400"
+                className="mt-2 text-[11px] text-danger"
                 data-testid={`agent-error-${agentId}`}
               >
                 {lastError.message}

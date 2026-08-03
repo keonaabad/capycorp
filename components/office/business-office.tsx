@@ -8,7 +8,16 @@ import {
   type BackendOfficeAdapter,
 } from "@/lib/simulation/adapter";
 import { TaskComposer } from "@/components/business/task-composer";
-import { OfficeWorkspace } from "./office-workspace";
+import { AgentInspector } from "./agent-inspector";
+import { OfficeCanvas } from "./office-canvas";
+import {
+  ActivityFeed,
+  type ActivityFeedEvent,
+} from "@/components/business/activity-feed";
+import {
+  ArtifactList,
+  type ArtifactListItem,
+} from "@/components/business/artifact-list";
 
 const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_MS = 90_000;
@@ -23,12 +32,27 @@ interface TaskPollResponse {
   }[];
 }
 
+/**
+ * The business "conversation" — office canvas dominant, the task
+ * composer pinned like a chat input under it, and everything else
+ * (agent inspector, deliverables, activity) in a right rail. Composes
+ * OfficeCanvas/AgentInspector directly rather than going through
+ * OfficeWorkspace's canvas+column grid — that grid still fits /demo's
+ * simpler needs (no composer, no artifacts/activity), but this page's
+ * layout is different enough it isn't worth forcing into the same shape.
+ */
 export function BusinessOffice({
   businessId,
+  businessName,
   agents,
+  events,
+  artifacts,
 }: {
   businessId: string;
+  businessName: string;
   agents: readonly BackendAgentSeed[];
+  events: readonly ActivityFeedEvent[];
+  artifacts: readonly ArtifactListItem[];
 }) {
   const router = useRouter();
   const [adapter] = useState<BackendOfficeAdapter>(() =>
@@ -62,7 +86,7 @@ export function BusinessOffice({
           if (body.task.status === "failed" && body.task.error) {
             setPollError(body.task.error);
           }
-          // Pulls fresh server data — this is what makes the office.tsx
+          // Pulls fresh server data — this is what makes the page's
           // remount-via-key safe now that sprites seed their start
           // position from the agent's real current state, not idle.
           router.refresh();
@@ -88,17 +112,34 @@ export function BusinessOffice({
   }, [activeTaskId, adapter, businessId, router]);
 
   return (
-    <div className="space-y-6">
-      <TaskComposer
-        businessId={businessId}
-        disabled={activeTaskId !== null}
-        onTaskStarted={(taskId) => {
-          setPollError(null);
-          setActiveTaskId(taskId);
-        }}
-      />
-      {pollError ? <p className="text-xs text-red-400">{pollError}</p> : null}
-      <OfficeWorkspace adapter={adapter} disabled={activeTaskId !== null} />
+    <div className="flex h-full">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="border-b border-border px-6 py-3">
+          <h1 className="text-sm font-semibold text-ink">{businessName}</h1>
+        </header>
+        <div className="flex flex-1 items-start justify-center overflow-y-auto p-6">
+          <OfficeCanvas adapter={adapter} />
+        </div>
+        <div className="border-t border-border p-4">
+          <TaskComposer
+            businessId={businessId}
+            disabled={activeTaskId !== null}
+            onTaskStarted={(taskId) => {
+              setPollError(null);
+              setActiveTaskId(taskId);
+            }}
+          />
+          {pollError ? (
+            <p className="mt-2 text-xs text-danger">{pollError}</p>
+          ) : null}
+        </div>
+      </div>
+
+      <aside className="w-[360px] shrink-0 space-y-6 overflow-y-auto border-l border-border bg-sidebar p-4">
+        <AgentInspector adapter={adapter} />
+        <ArtifactList artifacts={artifacts} />
+        <ActivityFeed events={events} />
+      </aside>
     </div>
   );
 }
