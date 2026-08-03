@@ -112,6 +112,17 @@ describe("performSubtaskWork", () => {
     });
   });
 
+  it("throws instead of returning a truncated max_tokens response as a real answer", async () => {
+    createMock.mockResolvedValue({
+      stop_reason: "max_tokens",
+      content: [{ type: "text", text: "Let me compile this into a" }],
+    });
+
+    await expect(performSubtaskWork(subtask, context)).rejects.toThrow(
+      /cut off/i,
+    );
+  });
+
   it("throws after exceeding the tool-use iteration cap", async () => {
     createMock.mockResolvedValue(toolUseResponse("tool-x", "q"));
     webSearchMock.mockResolvedValue([]);

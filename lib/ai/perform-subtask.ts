@@ -98,14 +98,20 @@ export async function performSubtaskWork(
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
-      content: `You are the ${subtask.role} on a small team at ${context.businessName}. The team's overall goal, submitted by the business owner, is:\n\n"${context.goal}"\n\nYour assigned piece of that goal:\n\nTitle: ${subtask.title}\nDetails: ${subtask.description}\n\nYou have real tools available: web_search, calculator, and generate_text_file — use whichever genuinely help, or none if you can just do the work directly. If your result is naturally a list or comparison, call submit_structured_result instead of writing free text. Otherwise, when finished, write a concise (2-4 sentence) summary of the work you completed.\n\nThere is no one available to answer follow-up questions — you must produce a real, useful result now. If a detail is unspecified, make a reasonable assumption, state it briefly, and proceed. Do not respond with only a request for more information.`,
+      content: `You are the ${subtask.role} on a small team at ${context.businessName}. The team's overall goal, submitted by the business owner, is:\n\n"${context.goal}"\n\nYour assigned piece of that goal:\n\nTitle: ${subtask.title}\nDetails: ${subtask.description}\n\nYou have real tools available: web_search, calculator, and generate_text_file — use whichever genuinely help, or none if you can just do the work directly. If the deliverable is naturally a file (code, a report, notes), call generate_text_file and put the real content there — don't describe it in prose instead. If your result is naturally a list or comparison, call submit_structured_result. Otherwise, when finished, write a concise (2-4 sentence) summary.\n\nCritical: your final text reply must directly contain the actual answer or outcome — never a statement of what you are about to do or have just done (e.g. "Let me compile this" or "I'll now create..."). If you find yourself about to write a sentence like that, that means the work isn't done yet — keep going (call a tool, or write the real content) instead of stopping.\n\nThere is no one available to answer follow-up questions — you must produce a real, useful result now. If a detail is unspecified, make a reasonable assumption, state it briefly, and proceed. Do not respond with only a request for more information.`,
     },
   ];
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     const response = await anthropic.messages.create({
       model: requireModel(),
-      max_tokens: 512,
+      // 512, then 1536, both proved too tight — an "engineer" subtask that
+      // reasons about a tool result and then writes a real code file
+      // routinely got cut off mid-generation, which the old code silently
+      // accepted as a "finished" answer. 4096 leaves real headroom for
+      // actual generated content; the max_tokens guard above still catches
+      // genuine overruns instead of persisting a truncated fragment.
+      max_tokens: 4096,
       tools: [
         {
           name: WEB_SEARCH_TOOL_NAME,
@@ -173,6 +179,16 @@ export async function performSubtaskWork(
     });
 
     if (response.stop_reason !== "tool_use") {
+      // A response cut short by the token budget is not a real answer —
+      // observed in production as a "completed" subtask whose result was
+      // just a truncated sentence ("Let me compile this...") with no
+      // actual content. Surfacing that honestly as a failure is better
+      // than silently persisting the fragment as if it were done.
+      if (response.stop_reason === "max_tokens") {
+        throw new Error(
+          "Agent's response was cut off before finishing (ran out of response budget).",
+        );
+      }
       const textBlock = response.content.find((block) => block.type === "text");
       if (!textBlock || textBlock.type !== "text") {
         throw new Error("Agent did not return a text result.");
