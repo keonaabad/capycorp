@@ -158,6 +158,7 @@ describe("runTaskOrchestration", () => {
 
     const result = await runTaskOrchestration(
       "task-1",
+      "Acme Widgets",
       manager as never,
       agentsByRole as never,
       "Ship a pricing page",
@@ -193,6 +194,7 @@ describe("runTaskOrchestration", () => {
 
     const result = await runTaskOrchestration(
       "task-1",
+      "Acme Widgets",
       manager as never,
       agentsByRole as never,
       "Ship a pricing page",
@@ -222,6 +224,7 @@ describe("runTaskOrchestration", () => {
 
     const result = await runTaskOrchestration(
       "task-1",
+      "Acme Widgets",
       manager as never,
       agentsByRole as never,
       "Ship a pricing page",
@@ -259,6 +262,7 @@ describe("runTaskOrchestration", () => {
     performSubtaskWorkMock.mockImplementation(
       async (
         _subtask: unknown,
+        _context: unknown,
         hooks: {
           onWebSearch: (
             q: string,
@@ -277,6 +281,7 @@ describe("runTaskOrchestration", () => {
 
     await runTaskOrchestration(
       "task-1",
+      "Acme Widgets",
       manager as never,
       agentsByRole as never,
       "Ship a pricing page",
@@ -320,6 +325,7 @@ describe("runTaskOrchestration", () => {
     performSubtaskWorkMock.mockImplementation(
       async (
         _subtask: unknown,
+        _context: unknown,
         hooks: {
           onCalculate: (
             expression: string,
@@ -338,6 +344,7 @@ describe("runTaskOrchestration", () => {
 
     await runTaskOrchestration(
       "task-1",
+      "Acme Widgets",
       manager as never,
       agentsByRole as never,
       "Ship a pricing page",
@@ -370,6 +377,7 @@ describe("runTaskOrchestration", () => {
     performSubtaskWorkMock.mockImplementation(
       async (
         _subtask: unknown,
+        _context: unknown,
         hooks: {
           onGenerateFile: (
             file: { filename: string; content: string },
@@ -391,6 +399,7 @@ describe("runTaskOrchestration", () => {
 
     await runTaskOrchestration(
       "task-1",
+      "Acme Widgets",
       manager as never,
       agentsByRole as never,
       "Ship a pricing page",

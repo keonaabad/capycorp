@@ -17,6 +17,11 @@ const subtask = {
   description: "Find current pricing for three competitors.",
 };
 
+const context = {
+  businessName: "Acme Widgets",
+  goal: "Research three competitors and compare their pricing.",
+};
+
 function textResponse(text: string) {
   return { stop_reason: "end_turn", content: [{ type: "text", text }] };
 }
@@ -58,7 +63,7 @@ describe("performSubtaskWork", () => {
   it("returns the final text when the model doesn't need to search", async () => {
     createMock.mockResolvedValue(textResponse("Done, here's a summary."));
 
-    const result = await performSubtaskWork(subtask);
+    const result = await performSubtaskWork(subtask, context);
 
     expect(result).toBe("Done, here's a summary.");
     expect(webSearchMock).not.toHaveBeenCalled();
@@ -71,7 +76,7 @@ describe("performSubtaskWork", () => {
       .mockResolvedValueOnce(textResponse("Found it."));
     webSearchMock.mockResolvedValue([{ title: "t", url: "u", snippet: "s" }]);
 
-    const result = await performSubtaskWork(subtask);
+    const result = await performSubtaskWork(subtask, context);
 
     expect(result).toBe("Found it.");
     expect(webSearchMock).toHaveBeenCalledWith("competitor pricing");
@@ -90,7 +95,7 @@ describe("performSubtaskWork", () => {
       .mockResolvedValueOnce(textResponse("Answered without search."));
     webSearchMock.mockRejectedValue(new Error("Tavily rate limit exceeded."));
 
-    const result = await performSubtaskWork(subtask);
+    const result = await performSubtaskWork(subtask, context);
 
     expect(result).toBe("Answered without search.");
     const toolResultBlock = (
@@ -111,7 +116,9 @@ describe("performSubtaskWork", () => {
     createMock.mockResolvedValue(toolUseResponse("tool-x", "q"));
     webSearchMock.mockResolvedValue([]);
 
-    await expect(performSubtaskWork(subtask)).rejects.toThrow(/iterations/);
+    await expect(performSubtaskWork(subtask, context)).rejects.toThrow(
+      /iterations/,
+    );
     expect(createMock).toHaveBeenCalledTimes(4);
   });
 
@@ -122,7 +129,7 @@ describe("performSubtaskWork", () => {
     const hookResults = [{ title: "hooked", url: "u", snippet: "s" }];
     const onWebSearch = vi.fn().mockResolvedValue(hookResults);
 
-    const result = await performSubtaskWork(subtask, { onWebSearch });
+    const result = await performSubtaskWork(subtask, context, { onWebSearch });
 
     expect(result).toBe("Done.");
     expect(onWebSearch).toHaveBeenCalledWith(
@@ -143,7 +150,7 @@ describe("performSubtaskWork", () => {
       )
       .mockResolvedValueOnce(textResponse("The total is 4."));
 
-    const result = await performSubtaskWork(subtask);
+    const result = await performSubtaskWork(subtask, context);
 
     expect(result).toBe("The total is 4.");
     const toolResultBlock = (
@@ -159,7 +166,7 @@ describe("performSubtaskWork", () => {
       )
       .mockResolvedValueOnce(textResponse("Couldn't compute that."));
 
-    const result = await performSubtaskWork(subtask);
+    const result = await performSubtaskWork(subtask, context);
 
     expect(result).toBe("Couldn't compute that.");
     const toolResultBlock = (
@@ -177,7 +184,7 @@ describe("performSubtaskWork", () => {
       .mockResolvedValueOnce(textResponse("Done."));
     const onCalculate = vi.fn().mockResolvedValue(99);
 
-    const result = await performSubtaskWork(subtask, { onCalculate });
+    const result = await performSubtaskWork(subtask, context, { onCalculate });
 
     expect(result).toBe("Done.");
     expect(onCalculate).toHaveBeenCalledWith("2 + 2", expect.any(Function));
@@ -197,7 +204,7 @@ describe("performSubtaskWork", () => {
       )
       .mockResolvedValueOnce(textResponse("Saved the notes."));
 
-    const result = await performSubtaskWork(subtask);
+    const result = await performSubtaskWork(subtask, context);
 
     expect(result).toBe("Saved the notes.");
     const toolResultBlock = (
@@ -219,7 +226,9 @@ describe("performSubtaskWork", () => {
       .fn()
       .mockResolvedValue({ filename: "notes.txt", content: "Some findings." });
 
-    const result = await performSubtaskWork(subtask, { onGenerateFile });
+    const result = await performSubtaskWork(subtask, context, {
+      onGenerateFile,
+    });
 
     expect(result).toBe("Done.");
     expect(onGenerateFile).toHaveBeenCalledWith(
@@ -239,7 +248,7 @@ describe("performSubtaskWork", () => {
       }),
     );
 
-    const result = await performSubtaskWork(subtask);
+    const result = await performSubtaskWork(subtask, context);
 
     expect(result).toBe(
       "Three competitors compared.\n- Acme: $10/mo\n- Globex: $12/mo",
@@ -255,6 +264,8 @@ describe("performSubtaskWork", () => {
       }),
     );
 
-    await expect(performSubtaskWork(subtask)).rejects.toThrow(/malformed/i);
+    await expect(performSubtaskWork(subtask, context)).rejects.toThrow(
+      /malformed/i,
+    );
   });
 });

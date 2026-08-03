@@ -154,15 +154,17 @@ describe("POST /api/businesses/[id]/tasks", () => {
     businessFindUniqueMock.mockResolvedValue({
       id: "biz-1",
       userId: "user-1",
+      name: "Acme Widgets",
       agents,
     });
 
     await POST(makeRequest({ goal: "Ship a pricing page" }), ctx);
 
     expect(runTaskOrchestrationMock).toHaveBeenCalledTimes(1);
-    const [taskId, manager, agentsByRole, goal] =
+    const [taskId, businessName, manager, agentsByRole, goal] =
       runTaskOrchestrationMock.mock.calls[0];
     expect(taskId).toMatch(/^task-/);
+    expect(businessName).toBe("Acme Widgets");
     expect(manager.id).toBe("agent-manager");
     expect(agentsByRole.get("engineer").id).toBe("agent-engineer");
     expect(goal).toBe("Ship a pricing page");
@@ -224,7 +226,7 @@ describe("POST /api/businesses/[id]/tasks", () => {
 
     await POST(makeRequest({ goal: "Ship a pricing page" }), ctx);
 
-    const [, manager, agentsByRole] = runTaskOrchestrationMock.mock.calls[0];
+    const [, , manager, agentsByRole] = runTaskOrchestrationMock.mock.calls[0];
     expect(manager.state).toBe("idle");
     expect(agentsByRole.get("engineer").state).toBe("idle");
     // The persisted DB state must match what orchestration was handed.

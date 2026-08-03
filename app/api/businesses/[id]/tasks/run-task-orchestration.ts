@@ -112,6 +112,7 @@ async function runSubtask(
   taskId: string,
   agentRow: Agent,
   planned: PlannedSubtask,
+  context: { businessName: string; goal: string },
 ): Promise<{ ok: boolean; title: string }> {
   const subtask = await prisma.subtask.create({
     data: {
@@ -143,7 +144,7 @@ async function runSubtask(
       "planning",
       "working",
     ]);
-    const result = await performSubtaskWork(planned, {
+    const result = await performSubtaskWork(planned, context, {
       onWebSearch: (query, run) =>
         runWithToolEvent("web_search", { query }, run, (results) => ({
           resultCount: results.length,
@@ -215,6 +216,7 @@ async function runSubtask(
  */
 export async function runTaskOrchestration(
   taskId: string,
+  businessName: string,
   manager: Agent,
   agentsByRole: ReadonlyMap<SubtaskRole | "manager", Agent>,
   goal: string,
@@ -224,7 +226,7 @@ export async function runTaskOrchestration(
   );
 
   try {
-    const plannedSubtasks = await planTask(goal, availableRoles);
+    const plannedSubtasks = await planTask(goal, availableRoles, businessName);
 
     let managerRuntime: AgentRuntimeState = {
       current: manager.state,
@@ -251,7 +253,10 @@ export async function runTaskOrchestration(
     );
     const subtaskResults = await Promise.all(
       validSubtasks.map((planned) =>
-        runSubtask(taskId, agentsByRole.get(planned.role) as Agent, planned),
+        runSubtask(taskId, agentsByRole.get(planned.role) as Agent, planned, {
+          businessName,
+          goal,
+        }),
       ),
     );
     const anyFailed = subtaskResults.some((r) => !r.ok);

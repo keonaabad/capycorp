@@ -102,11 +102,15 @@ export async function POST(
   // non-idle — the existing midRun 409 check above is what surfaces that
   // if it happens, by design, not a bug.
   after(() =>
-    runTaskOrchestration(task.id, manager, agentsByRole, trimmedGoal).catch(
-      (error: unknown) => {
-        console.error("Unhandled task orchestration error", error);
-      },
-    ),
+    runTaskOrchestration(
+      task.id,
+      business.name,
+      manager,
+      agentsByRole,
+      trimmedGoal,
+    ).catch((error: unknown) => {
+      console.error("Unhandled task orchestration error", error);
+    }),
   );
 
   return NextResponse.json({ taskId: task.id }, { status: 202 });

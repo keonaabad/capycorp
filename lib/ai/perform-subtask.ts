@@ -24,10 +24,7 @@ export interface SubtaskToolHooks {
     query: string,
     run: () => Promise<WebSearchResult[]>,
   ): Promise<WebSearchResult[]>;
-  onCalculate(
-    expression: string,
-    run: () => Promise<number>,
-  ): Promise<number>;
+  onCalculate(expression: string, run: () => Promise<number>): Promise<number>;
   onGenerateFile(
     file: TextFile,
     run: () => Promise<TextFile>,
@@ -63,11 +60,7 @@ function formatStructuredResult(input: unknown): string {
     );
   }
   const { summary, items } = input as Record<string, unknown>;
-  if (
-    typeof summary !== "string" ||
-    !summary.trim() ||
-    !Array.isArray(items)
-  ) {
+  if (typeof summary !== "string" || !summary.trim() || !Array.isArray(items)) {
     throw new Error(
       "Structured result was malformed: invalid summary or items.",
     );
@@ -98,13 +91,14 @@ function formatStructuredResult(input: unknown): string {
  */
 export async function performSubtaskWork(
   subtask: { role: SubtaskRole; title: string; description: string },
+  context: { businessName: string; goal: string },
   hooks: Partial<SubtaskToolHooks> = {},
 ): Promise<string> {
   const resolvedHooks: SubtaskToolHooks = { ...defaultHooks, ...hooks };
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
-      content: `You are the ${subtask.role} on a small team at a business. You've been assigned this subtask:\n\nTitle: ${subtask.title}\nDetails: ${subtask.description}\n\nYou have real tools available: web_search, calculator, and generate_text_file — use whichever genuinely help, or none if you can just do the work directly. If your result is naturally a list or comparison, call submit_structured_result instead of writing free text. Otherwise, when finished, write a concise (2-4 sentence) summary of the work you completed.`,
+      content: `You are the ${subtask.role} on a small team at ${context.businessName}. The team's overall goal, submitted by the business owner, is:\n\n"${context.goal}"\n\nYour assigned piece of that goal:\n\nTitle: ${subtask.title}\nDetails: ${subtask.description}\n\nYou have real tools available: web_search, calculator, and generate_text_file — use whichever genuinely help, or none if you can just do the work directly. If your result is naturally a list or comparison, call submit_structured_result instead of writing free text. Otherwise, when finished, write a concise (2-4 sentence) summary of the work you completed.\n\nThere is no one available to answer follow-up questions — you must produce a real, useful result now. If a detail is unspecified, make a reasonable assumption, state it briefly, and proceed. Do not respond with only a request for more information.`,
     },
   ];
 
@@ -278,8 +272,7 @@ export async function performSubtaskWork(
         const input = block.input as { filename?: unknown; content?: unknown };
         const filename =
           typeof input.filename === "string" ? input.filename : "";
-        const content =
-          typeof input.content === "string" ? input.content : "";
+        const content = typeof input.content === "string" ? input.content : "";
         try {
           const saved = await resolvedHooks.onGenerateFile(
             { filename, content },

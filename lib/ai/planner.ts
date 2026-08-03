@@ -22,6 +22,7 @@ const PLANNER_TOOL_NAME = "propose_subtasks";
 export async function planTask(
   goal: string,
   availableRoles: readonly SubtaskRole[],
+  businessName: string,
 ): Promise<PlannedSubtask[]> {
   if (availableRoles.length === 0) {
     return [];
@@ -61,7 +62,7 @@ export async function planTask(
     messages: [
       {
         role: "user",
-        content: `You are the manager of a small team (${availableRoles.join(", ")}) at a business. A user submitted this goal:\n\n"${goal}"\n\nBreak it into a focused subtask for each team member whose skills are actually relevant. Keep titles short and descriptions to 1-2 sentences.`,
+        content: `You are the manager of a small team (${availableRoles.join(", ")}) at ${businessName}. The business's owner submitted this goal:\n\n"${goal}"\n\nBreak it into a focused subtask for each team member whose skills are actually relevant — a specific, concrete piece of the goal, not a restatement of the whole thing. Keep titles short and descriptions to 1-2 sentences.`,
       },
     ],
   });

@@ -21,7 +21,7 @@ describe("planTask", () => {
   });
 
   it("returns [] without calling the model when no roles are available", async () => {
-    const result = await planTask("Do something", []);
+    const result = await planTask("Do something", [], "Acme Widgets");
     expect(result).toEqual([]);
     expect(createMock).not.toHaveBeenCalled();
   });
@@ -39,11 +39,11 @@ describe("planTask", () => {
       }),
     );
 
-    const result = await planTask("Research competitor pricing", [
-      "engineer",
-      "researcher",
-      "designer",
-    ]);
+    const result = await planTask(
+      "Research competitor pricing",
+      ["engineer", "researcher", "designer"],
+      "Acme Widgets",
+    );
 
     expect(result).toEqual([
       {
@@ -59,17 +59,17 @@ describe("planTask", () => {
       content: [{ type: "text", text: "sorry, I can't do that" }],
     });
 
-    await expect(planTask("Do something", ["engineer"])).rejects.toThrow(
-      /structured plan/,
-    );
+    await expect(
+      planTask("Do something", ["engineer"], "Acme Widgets"),
+    ).rejects.toThrow(/structured plan/);
   });
 
   it("throws when subtasks is missing from the tool input", async () => {
     createMock.mockResolvedValue(toolUseResponse({}));
 
-    await expect(planTask("Do something", ["engineer"])).rejects.toThrow(
-      /missing subtasks array/,
-    );
+    await expect(
+      planTask("Do something", ["engineer"], "Acme Widgets"),
+    ).rejects.toThrow(/missing subtasks array/);
   });
 
   it("throws when a subtask has a role outside the available roles", async () => {
@@ -81,8 +81,8 @@ describe("planTask", () => {
       }),
     );
 
-    await expect(planTask("Do something", ["engineer"])).rejects.toThrow(
-      /invalid subtask fields/,
-    );
+    await expect(
+      planTask("Do something", ["engineer"], "Acme Widgets"),
+    ).rejects.toThrow(/invalid subtask fields/);
   });
 });
