@@ -17,7 +17,7 @@ export function OfficeWorkspace({
   disabled?: boolean;
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[720px_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[800px_1fr]">
       <OfficeCanvas adapter={adapter} />
       <div className="space-y-6">
         <AgentInspector adapter={adapter} />

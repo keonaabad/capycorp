@@ -35,16 +35,16 @@ export function OfficeExperience() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-md border border-white/10 p-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3">
         <button
           type="button"
           onClick={isPlayingDemo ? stopDemo : startDemo}
-          className="rounded border border-lime-300/60 px-3 py-1.5 text-xs font-medium text-lime-300 transition-colors hover:bg-lime-300/10"
+          className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90"
           data-testid="demo-toggle"
         >
           {isPlayingDemo ? "■ Stop scripted demo" : "▶ Play scripted demo"}
         </button>
-        <p className="text-xs text-white/40">
+        <p className="text-xs text-muted">
           {isPlayingDemo
             ? "Playing a scripted task through the same OfficeEventAdapter the dev panel uses — manual controls are paused so the two don't fight over the same agents."
             : "Runs a canned research → design/engineering → approval task end to end, looping automatically."}

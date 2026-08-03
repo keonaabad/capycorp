@@ -1,24 +1,67 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
+import {
+  Application,
+  Container,
+  Graphics,
+  Rectangle,
+  Sprite,
+  Text,
+  Texture,
+} from "pixi.js";
 import type { AgentState } from "@/lib/simulation/state-machine";
 import {
-  MANAGER_INBOX_POSITION,
-  MEETING_TABLE_POSITION,
   OFFICE_HEIGHT,
   OFFICE_WIDTH,
-  destinationForState,
+  pathTo,
+  zoneForState,
+  type OfficePoint,
+  type OfficeZone,
 } from "@/lib/simulation/office-layout";
 import type {
   AgentSnapshot,
   OfficeEventAdapter,
 } from "@/lib/simulation/adapter";
+import {
+  drawCapybaraSprite,
+  SPRITE_GRID_HEIGHT,
+  SPRITE_GRID_WIDTH,
+} from "./capybara-sprite";
+import { buildOfficeScene } from "./office-decor";
+import {
+  STATE_BUBBLE_ICON,
+  buildBubbleBackground,
+  buildFolderIcon,
+  drawBubbleGlyph,
+} from "./state-bubble";
 
 type CapybaraSpec = Pick<
   AgentSnapshot,
-  "id" | "name" | "accentColor" | "idlePosition" | "deskPosition" | "current"
+  | "id"
+  | "name"
+  | "role"
+  | "accentColor"
+  | "idlePosition"
+  | "deskPosition"
+  | "current"
 >;
+
+const SPRITE_SCALE = 2.2;
+const WALK_FRAME_INTERVAL_MS = 180;
+
+function buildCapybaraTexture(agent: CapybaraSpec, frame: 0 | 1): Texture {
+  const canvas = document.createElement("canvas");
+  canvas.width = SPRITE_GRID_WIDTH;
+  canvas.height = SPRITE_GRID_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    drawCapybaraSprite(ctx, agent.role, agent.accentColor, frame);
+  }
+  const texture = Texture.from(canvas);
+  texture.source.scaleMode = "nearest";
+  return texture;
+}
 
 const MOVE_SPEED = 2.4; // px per frame at 60fps
 const STATE_LABEL: Record<AgentState, string> = {
@@ -38,21 +81,33 @@ const STATE_LABEL: Record<AgentState, string> = {
 
 interface SpriteRig {
   container: Container;
-  body: Graphics;
+  body: Sprite;
+  agent: CapybaraSpec;
+  // The walk frame is built lazily, the first time an agent actually
+  // walks — building it eagerly for all 4 sprites at mount (8 canvas
+  // draws + GPU texture uploads instead of 4) was enough one-time
+  // synchronous work to noticeably delay initial paint under load.
+  textures: [Texture, Texture | null];
+  walkFrame: 0 | 1;
+  nextFrameSwapAt: number;
+  facing: 1 | -1;
   label: Text;
   badge: Text;
   ring: Graphics;
-  target: { x: number; y: number };
+  /** Above the badge — an at-a-glance icon for the states where a glyph reads faster than the badge text. */
+  stateBubble: Container;
+  stateBubbleGlyph: Graphics;
+  /** Visible only during needs_approval — see state-bubble.ts's buildFolderIcon. */
+  folderIcon: Graphics;
+  /** Waypoint queue toward the current destination — see office-layout.ts's pathTo(). */
+  path: OfficePoint[];
+  /** The room (or hallway) the sprite is standing in once `path` empties. */
+  zone: OfficeZone;
+  /** The zone `path`'s final waypoint lives in — becomes `zone` on arrival. */
+  targetZone: OfficeZone;
   flashUntil: number;
   flashColor: number;
   lastState: AgentState | null;
-}
-
-function buildDesk(x: number, y: number): Graphics {
-  return new Graphics()
-    .roundRect(x - 26, y - 16, 52, 32, 4)
-    .fill({ color: 0x3a2f27 })
-    .stroke({ color: 0x241c17, width: 2 });
 }
 
 function buildCapybara(agent: CapybaraSpec): SpriteRig {
@@ -61,44 +116,40 @@ function buildCapybara(agent: CapybaraSpec): SpriteRig {
   // always idlePosition — otherwise a remount mid- or post-run (e.g. the
   // router.refresh() after a live task finishes) snaps every sprite back
   // to idle and replays the walk, which reads as a glitch once there's a
-  // live animation to interrupt. "paused" has no destination of its own
-  // (see destinationForState's contract), so it falls back to idle.
-  const startPosition =
-    agent.current === "paused"
-      ? agent.idlePosition
-      : destinationForState(agent, agent.current);
+  // live animation to interrupt. "paused" has no zone/destination of its
+  // own (see zoneForState/destinationForState's contract), so it falls
+  // back to idle.
+  const initialState = agent.current === "paused" ? "idle" : agent.current;
+  const zone = zoneForState(agent.role, initialState);
+  const startPosition = pathTo(agent, zone, initialState).at(-1)!;
   container.x = startPosition.x;
   container.y = startPosition.y;
   container.eventMode = "static";
   container.cursor = "pointer";
-  container.hitArea = new Rectangle(-22, -34, 44, 62);
+  container.hitArea = new Rectangle(-24, -40, 48, 70);
 
   const ring = new Graphics().ellipse(0, 10, 22, 10).stroke({
-    color: 0xf1d97a,
+    color: 0xd4a24c,
     width: 3,
   });
   ring.visible = false;
 
-  const body = new Graphics()
-    .roundRect(-16, -10, 32, 24, 10)
-    .fill({ color: 0x9c7a4f })
-    .roundRect(-11, -24, 22, 18, 8)
-    .fill({ color: 0xb08e5f })
-    .circle(-8, -22, 4)
-    .fill({ color: 0xb08e5f })
-    .circle(8, -22, 4)
-    .fill({ color: 0xb08e5f })
-    .circle(-4, -16, 1.6)
-    .fill({ color: 0x241c17 })
-    .circle(4, -16, 1.6)
-    .fill({ color: 0x241c17 })
-    .roundRect(-14, -10, 8, 8, 3)
-    .fill({ color: agent.accentColor });
+  // Anchored at its own bottom edge so the sprite's feet land on `y: 14`,
+  // matching the desk/table/inbox y-coordinates in office-layout.ts exactly
+  // the way the old Graphics body's bottom edge (roundRect ending at +14) did.
+  const textures: [Texture, Texture | null] = [
+    buildCapybaraTexture(agent, 0),
+    null,
+  ];
+  const body = new Sprite(textures[0]);
+  body.anchor.set(0.5, 1);
+  body.scale.set(SPRITE_SCALE);
+  body.y = 14;
 
   const label = new Text({
     text: agent.name,
     style: {
-      fill: 0xf4ead9,
+      fill: 0xf1e9d8,
       fontSize: 11,
       fontFamily: "ui-monospace, monospace",
     },
@@ -109,24 +160,48 @@ function buildCapybara(agent: CapybaraSpec): SpriteRig {
   const badge = new Text({
     text: STATE_LABEL.idle,
     style: {
-      fill: 0xb8f171,
+      fill: 0xd4a24c,
       fontSize: 9,
       fontFamily: "ui-monospace, monospace",
       align: "center",
     },
   });
   badge.anchor.set(0.5, 1);
-  badge.y = -30;
+  badge.y = -38;
 
-  container.addChild(ring, body, label, badge);
+  // Beside the head rather than stacked above the badge — idle positions
+  // for the top-row rooms (manager/engineer) sit only 40px below the
+  // room's own wall, not enough headroom to stack a bubble above the
+  // badge without it clipping off the top of the canvas.
+  const stateBubbleGlyph = new Graphics();
+  const stateBubble = new Container();
+  stateBubble.addChild(buildBubbleBackground(), stateBubbleGlyph);
+  stateBubble.position.set(15, -28);
+  stateBubble.visible = false;
+
+  const folderIcon = buildFolderIcon();
+  folderIcon.position.set(18, -2);
+  folderIcon.visible = false;
+
+  container.addChild(ring, body, label, badge, stateBubble, folderIcon);
 
   return {
     container,
     body,
+    agent,
+    textures,
+    walkFrame: 0,
+    nextFrameSwapAt: 0,
+    facing: 1,
     label,
     badge,
     ring,
-    target: { x: startPosition.x, y: startPosition.y },
+    stateBubble,
+    stateBubbleGlyph,
+    folderIcon,
+    path: [],
+    zone,
+    targetZone: zone,
     flashUntil: 0,
     flashColor: 0xffffff,
     lastState: null,
@@ -155,7 +230,7 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
       await app.init({
         width: OFFICE_WIDTH,
         height: OFFICE_HEIGHT,
-        backgroundColor: 0x14100c,
+        backgroundColor: 0x2b241c,
         antialias: true,
       });
       if (disposed || !host) {
@@ -169,41 +244,7 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
       appReady = true;
       host.appendChild(app.canvas);
 
-      const floor = new Graphics()
-        .rect(0, 0, OFFICE_WIDTH, OFFICE_HEIGHT)
-        .fill({ color: 0x1c1712 })
-        .rect(8, 8, OFFICE_WIDTH - 16, OFFICE_HEIGHT - 16)
-        .stroke({ color: 0x2a221a, width: 2 });
-      app.stage.addChild(floor);
-
-      for (const agent of roster) {
-        app.stage.addChild(
-          buildDesk(agent.deskPosition.x, agent.deskPosition.y),
-        );
-      }
-      const meetingTable = new Graphics()
-        .roundRect(
-          MEETING_TABLE_POSITION.x - 40,
-          MEETING_TABLE_POSITION.y - 20,
-          80,
-          40,
-          8,
-        )
-        .fill({ color: 0x2f271e })
-        .stroke({ color: 0x241c17, width: 2 });
-      app.stage.addChild(meetingTable);
-
-      const inbox = new Graphics()
-        .roundRect(
-          MANAGER_INBOX_POSITION.x - 18,
-          MANAGER_INBOX_POSITION.y + 24,
-          36,
-          20,
-          3,
-        )
-        .fill({ color: 0x4a3a28 })
-        .stroke({ color: 0xb8f171, width: 1.5 });
-      app.stage.addChild(inbox);
+      app.stage.addChild(buildOfficeScene());
 
       for (const agent of roster) {
         const rig = buildCapybara(agent);
@@ -217,14 +258,48 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
       app.ticker.add(() => {
         const now = performance.now();
         for (const rig of rigs.values()) {
-          const dx = rig.target.x - rig.container.x;
-          const dy = rig.target.y - rig.container.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 0.5) {
-            const step = Math.min(1, MOVE_SPEED / dist);
-            rig.container.x += dx * step;
-            rig.container.y += dy * step;
+          const waypoint = rig.path[0];
+          const moving = waypoint !== undefined;
+
+          if (waypoint) {
+            const dx = waypoint.x - rig.container.x;
+            const dy = waypoint.y - rig.container.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 0.5) {
+              const step = Math.min(1, MOVE_SPEED / dist);
+              rig.container.x += dx * step;
+              rig.container.y += dy * step;
+              // Only flip on a meaningful horizontal component — a purely
+              // vertical leg of a path (e.g. walking straight down through
+              // a door) shouldn't make the sprite flicker between facings.
+              if (Math.abs(dx) > 1) {
+                rig.facing = dx > 0 ? 1 : -1;
+              }
+            } else {
+              rig.path.shift();
+              if (rig.path.length === 0) {
+                rig.zone = rig.targetZone;
+              }
+            }
           }
+
+          rig.body.scale.x = rig.facing * SPRITE_SCALE;
+
+          if (moving) {
+            if (now >= rig.nextFrameSwapAt) {
+              rig.walkFrame = rig.walkFrame === 0 ? 1 : 0;
+              if (rig.walkFrame === 1 && !rig.textures[1]) {
+                rig.textures[1] = buildCapybaraTexture(rig.agent, 1);
+              }
+              rig.body.texture = rig.textures[rig.walkFrame] ?? rig.textures[0];
+              rig.nextFrameSwapAt = now + WALK_FRAME_INTERVAL_MS;
+            }
+          } else if (rig.walkFrame !== 0) {
+            rig.walkFrame = 0;
+            rig.body.texture = rig.textures[0];
+            rig.nextFrameSwapAt = 0;
+          }
+
           if (rig.flashUntil > now) {
             const t = 1 - (rig.flashUntil - now) / 500;
             rig.container.scale.set(1 + Math.sin(t * Math.PI) * 0.18);
@@ -246,22 +321,29 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
         if (!agentSnapshot) continue;
         const state = agentSnapshot.current;
 
-        if (state !== "paused") {
-          const destination = destinationForState(agentSnapshot, state);
-          rig.target.x = destination.x;
-          rig.target.y = destination.y;
+        if (rig.lastState !== state) {
+          if (state !== "paused") {
+            rig.targetZone = zoneForState(agentSnapshot.role, state);
+            rig.path = pathTo(agentSnapshot, rig.zone, state);
+          }
+          if (state === "completed" || state === "failed") {
+            rig.flashUntil = performance.now() + 500;
+          }
+          const icon = STATE_BUBBLE_ICON[state];
+          if (icon) {
+            drawBubbleGlyph(rig.stateBubbleGlyph, icon);
+          }
+          rig.stateBubble.visible = Boolean(icon);
+          rig.folderIcon.visible = state === "needs_approval";
+          rig.lastState = state;
         }
 
         rig.badge.text = state === "paused" ? "paused" : STATE_LABEL[state];
         rig.ring.visible = snapshot.selectedAgentId === agentId;
-        rig.body.alpha = state === "paused" ? 0.55 : 1;
-
-        if (rig.lastState !== state) {
-          if (state === "completed" || state === "failed") {
-            rig.flashUntil = performance.now() + 500;
-          }
-          rig.lastState = state;
-        }
+        const dimmed = state === "paused";
+        rig.body.alpha = dimmed ? 0.55 : 1;
+        rig.stateBubble.alpha = dimmed ? 0.55 : 1;
+        rig.folderIcon.alpha = dimmed ? 0.55 : 1;
       }
     }
 
@@ -282,7 +364,7 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
   return (
     <div
       ref={hostRef}
-      className="overflow-hidden rounded-lg border border-white/10"
+      className="overflow-hidden rounded-lg border border-border"
       style={{ width: OFFICE_WIDTH, height: OFFICE_HEIGHT }}
     />
   );

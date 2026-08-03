@@ -63,12 +63,12 @@ test("clicking a capybara opens the inspector", async ({ page }) => {
     "Click a capybara",
   );
 
-  // The manager sprite starts at its idle position, (90, 70) in canvas
+  // The manager sprite starts at its idle position, (70, 50) in canvas
   // coordinates, established in lib/simulation/office-layout.ts.
   const canvas = page.locator("canvas");
   const box = await canvas.boundingBox();
   if (!box) throw new Error("canvas did not render a bounding box");
-  await page.mouse.click(box.x + 90, box.y + 70);
+  await page.mouse.click(box.x + 70, box.y + 50);
 
   await expect(page.getByTestId("agent-inspector")).toContainText("Moss");
   await expect(page.getByTestId("inspector-state")).toContainText("idle");

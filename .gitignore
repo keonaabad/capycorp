@@ -41,6 +41,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# personal local Claude Code settings — .claude/launch.json (dev server
+# config) stays shared/committed, this doesn't
+.claude/settings.local.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
