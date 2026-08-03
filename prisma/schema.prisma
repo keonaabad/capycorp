@@ -49,6 +49,24 @@ enum AgentRole {
   designer
 }
 
+// Mirrors AGENT_STATES in lib/simulation/state-machine.ts exactly — same
+// spelling/order — so the frontend state machine and the DB agree on the
+// set of valid states with no mapping layer between them.
+enum AgentState {
+  idle
+  assigned
+  walking_to_workstation
+  planning
+  working
+  using_tool
+  waiting
+  collaborating
+  needs_approval
+  completed
+  failed
+  paused
+}
+
 model Agent {
   id           String       @id @default(cuid())
   businessId   String
@@ -57,9 +75,13 @@ model Agent {
   role         AgentRole
   instructions String?
   active       Boolean      @default(true)
+  state        AgentState   @default(idle)
+  resumeState  AgentState?
+  currentTask  String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   events       AgentEvent[]
+  subtasks     Subtask[]
 }
 
 enum TaskStatus {
@@ -78,10 +100,33 @@ model Task {
   title       String
   goal        String
   status      TaskStatus   @default(pending)
+  // Populated on a top-level orchestration failure (planner error, an
+  // unexpected exception) once the run is detached from the request —
+  // per-subtask failures already have a home in Subtask.result.
+  error       String?
   createdAt   DateTime     @default(now())
   startedAt   DateTime?
   completedAt DateTime?
   events      AgentEvent[]
+  subtasks    Subtask[]
+}
+
+// Deferred since Phase 1/2 (see this file's header comment) until real
+// orchestration existed to need it — Phase 3's planner assigns one Subtask
+// per relevant role, each carrying the AI-generated title/description and
+// its eventual result. Reuses TaskStatus rather than a near-duplicate enum.
+model Subtask {
+  id          String     @id @default(cuid())
+  taskId      String
+  task        Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agentId     String
+  agent       Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  result      String?
+  status      TaskStatus @default(pending)
+  createdAt   DateTime   @default(now())
+  completedAt DateTime?
 }
 
 // One append-only table backs the activity timeline for a business. Kept

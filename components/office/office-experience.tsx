@@ -7,9 +7,7 @@ import {
   playScript,
   type ScriptPlayerHandle,
 } from "@/lib/simulation/script-player";
-import { OfficeCanvas } from "./office-canvas";
-import { DevControlPanel } from "./dev-control-panel";
-import { AgentInspector } from "./agent-inspector";
+import { OfficeWorkspace } from "./office-workspace";
 
 export function OfficeExperience() {
   const [adapter] = useState(() => createLocalOfficeAdapter());
@@ -52,13 +50,7 @@ export function OfficeExperience() {
             : "Runs a canned research → design/engineering → approval task end to end, looping automatically."}
         </p>
       </div>
-      <div className="grid gap-6 lg:grid-cols-[720px_1fr]">
-        <OfficeCanvas adapter={adapter} />
-        <div className="space-y-6">
-          <AgentInspector adapter={adapter} />
-          <DevControlPanel adapter={adapter} disabled={isPlayingDemo} />
-        </div>
-      </div>
+      <OfficeWorkspace adapter={adapter} disabled={isPlayingDemo} />
     </div>
   );
 }

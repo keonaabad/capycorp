@@ -11,17 +11,23 @@ function createRecordingAdapter() {
   };
 
   const adapter: OfficeEventAdapter = {
-    getSnapshot: (): OfficeSnapshot => ({ agents: {}, selectedAgentId: null }),
+    agentOrder: [],
+    getSnapshot: (): OfficeSnapshot => ({
+      agents: {},
+      selectedAgentId: null,
+      pendingAgentIds: new Set(),
+      lastError: null,
+    }),
     subscribe: () => () => {},
     setAgentState: (agentId: string, to: AgentState) => {
       calls.push(`setState:${agentId}:${to}`);
-      return ok;
+      return Promise.resolve(ok);
     },
-    pauseAgent: () => ok,
-    resumeAgent: () => ok,
+    pauseAgent: () => Promise.resolve(ok),
+    resumeAgent: () => Promise.resolve(ok),
     resetAgent: (agentId: string) => {
       calls.push(`reset:${agentId}`);
-      return ok;
+      return Promise.resolve(ok);
     },
     setAgentTask: (agentId: string, task: string | null) => {
       calls.push(`task:${agentId}:${task ?? "null"}`);

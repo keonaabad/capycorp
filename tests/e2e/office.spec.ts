@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("loads the office and changes an agent state via the dev control panel", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/demo");
 
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "Build your own AI company",
@@ -31,7 +31,7 @@ test("loads the office and changes an agent state via the dev control panel", as
 test("scripted demo drives state through the adapter and disables manual controls", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/demo");
 
   const toggle = page.getByTestId("demo-toggle");
   await expect(toggle).toHaveText("▶ Play scripted demo");
@@ -57,7 +57,7 @@ test("scripted demo drives state through the adapter and disables manual control
 });
 
 test("clicking a capybara opens the inspector", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/demo");
 
   await expect(page.getByTestId("agent-inspector")).toContainText(
     "Click a capybara",

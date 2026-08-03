@@ -4,16 +4,21 @@ import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
 import type { AgentState } from "@/lib/simulation/state-machine";
 import {
-  AGENTS,
   MANAGER_INBOX_POSITION,
   MEETING_TABLE_POSITION,
   OFFICE_HEIGHT,
   OFFICE_WIDTH,
   destinationForState,
-  getAgentDefinition,
-  type AgentDefinition,
 } from "@/lib/simulation/office-layout";
-import type { OfficeEventAdapter } from "@/lib/simulation/adapter";
+import type {
+  AgentSnapshot,
+  OfficeEventAdapter,
+} from "@/lib/simulation/adapter";
+
+type CapybaraSpec = Pick<
+  AgentSnapshot,
+  "id" | "name" | "accentColor" | "idlePosition" | "deskPosition" | "current"
+>;
 
 const MOVE_SPEED = 2.4; // px per frame at 60fps
 const STATE_LABEL: Record<AgentState, string> = {
@@ -50,10 +55,20 @@ function buildDesk(x: number, y: number): Graphics {
     .stroke({ color: 0x241c17, width: 2 });
 }
 
-function buildCapybara(agent: AgentDefinition): SpriteRig {
+function buildCapybara(agent: CapybaraSpec): SpriteRig {
   const container = new Container();
-  container.x = agent.idlePosition.x;
-  container.y = agent.idlePosition.y;
+  // Seed from wherever the agent's *current* state actually places it, not
+  // always idlePosition — otherwise a remount mid- or post-run (e.g. the
+  // router.refresh() after a live task finishes) snaps every sprite back
+  // to idle and replays the walk, which reads as a glitch once there's a
+  // live animation to interrupt. "paused" has no destination of its own
+  // (see destinationForState's contract), so it falls back to idle.
+  const startPosition =
+    agent.current === "paused"
+      ? agent.idlePosition
+      : destinationForState(agent, agent.current);
+  container.x = startPosition.x;
+  container.y = startPosition.y;
   container.eventMode = "static";
   container.cursor = "pointer";
   container.hitArea = new Rectangle(-22, -34, 44, 62);
@@ -111,7 +126,7 @@ function buildCapybara(agent: AgentDefinition): SpriteRig {
     label,
     badge,
     ring,
-    target: { x: agent.idlePosition.x, y: agent.idlePosition.y },
+    target: { x: startPosition.x, y: startPosition.y },
     flashUntil: 0,
     flashColor: 0xffffff,
     lastState: null,
@@ -129,6 +144,12 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
     let appReady = false;
     const app = new Application();
     const rigs = new Map<string, SpriteRig>();
+    // Computed once at setup time — safe because the adapter's roster is
+    // seeded synchronously (both for the local adapter and the backend
+    // adapter, which is constructed from server-fetched data).
+    const roster = adapter.agentOrder
+      .map((id) => adapter.getSnapshot().agents[id])
+      .filter((agent): agent is AgentSnapshot => Boolean(agent));
 
     async function setup() {
       await app.init({
@@ -155,7 +176,7 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
         .stroke({ color: 0x2a221a, width: 2 });
       app.stage.addChild(floor);
 
-      for (const agent of AGENTS) {
+      for (const agent of roster) {
         app.stage.addChild(
           buildDesk(agent.deskPosition.x, agent.deskPosition.y),
         );
@@ -184,7 +205,7 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
         .stroke({ color: 0xb8f171, width: 1.5 });
       app.stage.addChild(inbox);
 
-      for (const agent of AGENTS) {
+      for (const agent of roster) {
         const rig = buildCapybara(agent);
         rig.container.on("pointertap", () => adapter.selectAgent(agent.id));
         app.stage.addChild(rig.container);
@@ -223,11 +244,10 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
       for (const [agentId, rig] of rigs) {
         const agentSnapshot = snapshot.agents[agentId];
         if (!agentSnapshot) continue;
-        const definition = getAgentDefinition(agentId);
         const state = agentSnapshot.current;
 
         if (state !== "paused") {
-          const destination = destinationForState(definition, state);
+          const destination = destinationForState(agentSnapshot, state);
           rig.target.x = destination.x;
           rig.target.y = destination.y;
         }

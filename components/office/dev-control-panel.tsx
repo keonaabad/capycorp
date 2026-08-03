@@ -1,6 +1,5 @@
 "use client";
 
-import { AGENTS } from "@/lib/simulation/office-layout";
 import {
   AGENT_STATES,
   canTransition,
@@ -19,6 +18,14 @@ export function DevControlPanel({
   disabled?: boolean;
 }) {
   const agents = useOfficeSnapshot(adapter, (snapshot) => snapshot.agents);
+  const pendingAgentIds = useOfficeSnapshot(
+    adapter,
+    (snapshot) => snapshot.pendingAgentIds,
+  );
+  const lastError = useOfficeSnapshot(
+    adapter,
+    (snapshot) => snapshot.lastError,
+  );
 
   return (
     <div className="space-y-3" data-testid="dev-control-panel">
@@ -29,9 +36,11 @@ export function DevControlPanel({
         Manually drives each agent&apos;s state machine. This stands in for real
         backend events until orchestration is wired up.
       </p>
-      {AGENTS.map((agent) => {
-        const runtime = agents[agent.id];
+      {adapter.agentOrder.map((agentId) => {
+        const runtime = agents[agentId];
         if (!runtime) return null;
+        const isPending = pendingAgentIds.has(agentId);
+        const controlsDisabled = disabled || isPending;
         const nextStates =
           runtime.current === "paused"
             ? []
@@ -41,18 +50,18 @@ export function DevControlPanel({
 
         return (
           <div
-            key={agent.id}
+            key={agentId}
             className="rounded-md border border-white/10 p-3"
-            data-testid={`agent-controls-${agent.id}`}
+            data-testid={`agent-controls-${agentId}`}
           >
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs text-white/70">
-                {agent.name}{" "}
-                <span className="text-white/40">· {agent.role}</span>
+                {runtime.name}{" "}
+                <span className="text-white/40">· {runtime.role}</span>
               </span>
               <span
                 className="font-mono text-xs text-lime-300"
-                data-testid={`agent-state-${agent.id}`}
+                data-testid={`agent-state-${agentId}`}
               >
                 {runtime.current}
               </span>
@@ -63,8 +72,8 @@ export function DevControlPanel({
                   key={state}
                   type="button"
                   className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/80 transition-colors hover:border-lime-300 hover:text-lime-300 disabled:opacity-30 disabled:hover:border-white/15 disabled:hover:text-white/80"
-                  onClick={() => adapter.setAgentState(agent.id, state)}
-                  disabled={disabled}
+                  onClick={() => adapter.setAgentState(agentId, state)}
+                  disabled={controlsDisabled}
                 >
                   {state}
                 </button>
@@ -73,8 +82,8 @@ export function DevControlPanel({
                 <button
                   type="button"
                   className="rounded border border-lime-300/60 px-2 py-1 text-[11px] text-lime-300 disabled:opacity-30"
-                  onClick={() => adapter.resumeAgent(agent.id)}
-                  disabled={disabled}
+                  onClick={() => adapter.resumeAgent(agentId)}
+                  disabled={controlsDisabled}
                 >
                   resume
                 </button>
@@ -82,9 +91,9 @@ export function DevControlPanel({
                 <button
                   type="button"
                   className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 transition-colors hover:border-amber-300 hover:text-amber-300 disabled:opacity-30"
-                  onClick={() => adapter.pauseAgent(agent.id)}
+                  onClick={() => adapter.pauseAgent(agentId)}
                   disabled={
-                    disabled ||
+                    controlsDisabled ||
                     runtime.current === "idle" ||
                     isTerminal(runtime.current)
                   }
@@ -93,6 +102,14 @@ export function DevControlPanel({
                 </button>
               )}
             </div>
+            {lastError?.agentId === agentId ? (
+              <p
+                className="mt-2 text-[11px] text-red-400"
+                data-testid={`agent-error-${agentId}`}
+              >
+                {lastError.message}
+              </p>
+            ) : null}
           </div>
         );
       })}

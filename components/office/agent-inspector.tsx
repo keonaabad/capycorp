@@ -1,6 +1,5 @@
 "use client";
 
-import { getAgentDefinition } from "@/lib/simulation/office-layout";
 import {
   useOfficeSnapshot,
   type OfficeEventAdapter,
@@ -25,7 +24,6 @@ export function AgentInspector({ adapter }: { adapter: OfficeEventAdapter }) {
     );
   }
 
-  const definition = getAgentDefinition(selectedAgentId);
   const runtime = agents[selectedAgentId];
 
   return (
@@ -34,11 +32,9 @@ export function AgentInspector({ adapter }: { adapter: OfficeEventAdapter }) {
       data-testid="agent-inspector"
     >
       <p className="font-mono text-xs uppercase tracking-wide text-white/50">
-        {definition.role}
+        {runtime?.role}
       </p>
-      <h3 className="mt-1 text-lg font-semibold text-white">
-        {definition.name}
-      </h3>
+      <h3 className="mt-1 text-lg font-semibold text-white">{runtime?.name}</h3>
       <p
         className="mt-2 font-mono text-xs text-lime-300"
         data-testid="inspector-state"
