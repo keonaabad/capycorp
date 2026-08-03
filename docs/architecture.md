@@ -1131,6 +1131,24 @@ same-tick, un-awaited — close enough to "doesn't block the response" for
 what these tests assert, and it kept all three orchestration-kickoff
 tests meaningful instead of deleting their coverage.
 
+### The first live deploy still 500'd — a second, unrelated gap
+
+Env vars were all present, the build was "Ready," and account creation
+still failed. Actual Vercel runtime logs (pulled via the CLI, since the
+dashboard doesn't surface a stack trace inline) showed the real error:
+`PrismaClientInitializationError: Prisma Client could not locate the
+Query Engine for runtime "rhel-openssl-3.0.x"`. `prisma generate` had
+run and produced the right binary for Vercel's platform — the binary
+just never made it into the deployed function bundle. Next's build-time
+file tracer (`@vercel/nft`) only follows files it can see through
+static `import`/`require` analysis, and the Prisma generator's *custom*
+output path (`lib/generated/prisma`, not the default
+`node_modules/.prisma/client` the tracer already knows about) isn't one
+of them — the `.so.node` engine file got silently dropped. Fixed with
+`outputFileTracingIncludes: { "/*": ["./lib/generated/prisma/**/*"] }`
+in `next.config.ts`, confirmed by inspecting the emitted `.nft.json`
+trace file directly rather than trusting a green build.
+
 ### What this didn't do
 
 Didn't add a second `DIRECT_URL` env var / Prisma `directUrl` for a
