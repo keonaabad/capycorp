@@ -35,4 +35,11 @@ test("creates a business and its agent state persists across reload", async ({
   await expect(
     managerControls(page).locator('[data-testid^="agent-state-"]'),
   ).toHaveText("assigned");
+
+  // The activity feed reads AgentEvent rows back from the same reload —
+  // proves the Server Component actually renders fresh event history,
+  // not just fresh agent state.
+  await expect(page.getByTestId("activity-feed")).toContainText(
+    "idle → assigned",
+  );
 });

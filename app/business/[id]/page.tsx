@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { BusinessOffice } from "@/components/office/business-office";
+import { ActivityFeed } from "@/components/business/activity-feed";
 import { ROLE_ORDER, type AgentRole } from "@/lib/simulation/office-layout";
 import type { BackendAgentSeed } from "@/lib/simulation/adapter";
 
@@ -50,6 +51,13 @@ export default async function BusinessPage({
     .map((agent) => `${agent.id}:${agent.updatedAt.toISOString()}`)
     .join(",");
 
+  const events = await prisma.agentEvent.findMany({
+    where: { businessId: business.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: { agent: { select: { name: true, role: true } } },
+  });
+
   return (
     <div className="flex flex-1 flex-col bg-[#0e0b08] text-white">
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-12">
@@ -75,6 +83,7 @@ export default async function BusinessPage({
           businessId={business.id}
           agents={agents}
         />
+        <ActivityFeed events={events} />
       </main>
     </div>
   );

@@ -535,10 +535,61 @@ one polling interval and never be visibly observed, same accepted
 limitation as before. No production deployment story for the
 fire-and-forget execution model — unchanged from §14.
 
-## 16. Recommended next milestone
+## 16. Activity timeline UI — done
 
-An activity-timeline UI reading back the `AgentEvent` history that three
-milestones in a row have now been writing (`agent.state_changed` since
-Phase 3, `agent.tool_started`/`agent.tool_completed` since this one) with
-nothing ever reading it back. The data has been real and structured the
-whole time; the only thing missing is a screen that shows it.
+`AgentEvent` had been written to since Phase 3 with nothing ever reading it
+back — every prior milestone's "What this didn't do" listed this as
+deferred, and `docs/product-proposal.md` §15 named the component
+(`ActivityFeed`) without it ever getting built. It's built now: the
+business page renders a chronological feed of every `agent.state_changed`,
+`agent.tool_started`, and `agent.tool_completed` row for that business.
+
+### No new API route — same reasoning as §14's `GET` routes, applied again
+
+`app/business/[id]/page.tsx` already queries Prisma directly as a Server
+Component; the feed is one more `prisma.agentEvent.findMany(...)` call
+alongside the existing agents fetch, fully index-backed
+(`@@index([businessId, createdAt])`). No route exists with no other
+caller — the same YAGNI call already made once in this codebase for the
+office page's own data, made again here rather than re-litigated.
+
+### The refresh mechanism needed zero new wiring — confirmed, not assumed
+
+`BusinessOffice`'s live-polling `useEffect` already calls `router.refresh()`
+once a task run finishes, which reruns the _entire_ Server Component tree
+unconditionally — including this new query. `ActivityFeed` is a plain
+server-rendered sibling with no client state of its own, so it isn't
+gated by `BusinessOffice`'s `key={agentsFingerprint}` remount trick at
+all; that mechanism exists solely to reseed one client component's
+adapter. First real end-to-end test (extending `tests/e2e/business.spec.ts`'s
+existing reload, not a new spec) passed on the first try, confirming the
+reasoning held rather than just sounding right.
+
+### Defensive parsing has two layers, not one
+
+`AgentEvent.data` (`Prisma.JsonValue | null`) has zero structural link to
+`type` at the type level — a _recognized_ `type` can still carry `null` or
+malformed `data` (schema-legal, `data` is optional), not just an
+_unrecognized_ `type`. `formatEventLabel()` (`lib/events/format-event.ts`)
+falls back to a plain label for both cases rather than throwing, since a
+render-time exception over one bad row would fail the whole feed, not just
+one line — reusing the same `typeof x === "object" && x !== null`
+narrowing idiom already used at every other JSON boundary in this codebase
+(`lib/ai/planner.ts`, every route handler).
+
+### What this didn't do
+
+No pagination or filtering UI (`take: 50`, newest-first, no "load more").
+No live mid-task-run streaming of new events — the office canvas already
+owns "watch it happen live"; this is a history log, refreshed the same way
+the rest of the page already refreshes. No new event types.
+
+## 17. Recommended next milestone
+
+A real tool registry beyond web search — calculator, structured JSON
+output, text file generation — is the one piece of the original Phase 3
+proposal scope still unbuilt. Alternatively, a polish pass (real pixel art
+replacing the placeholder sprites, a landing page before the sign-in wall)
+would raise the portfolio ceiling without touching backend logic. Either
+is reasonable next; there's no longer a "the data exists but nothing shows
+it" gap forcing the choice the way the activity feed did.
