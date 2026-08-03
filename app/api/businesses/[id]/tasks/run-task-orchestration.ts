@@ -204,10 +204,10 @@ async function runSubtask(
 }
 
 /**
- * The full plan -> drive -> work -> complete loop for a task. Called
- * fire-and-forget from route.ts's POST handler, running detached from the
- * request that created it — see route.ts for why that's safe here (a
- * long-lived Node process) and where it wouldn't be (serverless).
+ * The full plan -> drive -> work -> complete loop for a task. Called from
+ * route.ts's POST handler via next/server's after(), so it keeps running
+ * once the response is sent — including on serverless (Vercel backs
+ * after() with waitUntil(), bounded by the route's maxDuration).
  *
  * Must never call anything depending on Next.js's request-scoped
  * AsyncLocalStorage (auth(), cookies(), headers()) — those become invalid

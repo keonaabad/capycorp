@@ -9,6 +9,14 @@ vi.mock("./run-task-orchestration", () => ({
   runTaskOrchestration: runTaskOrchestrationMock,
   NON_MANAGER_ROLES: ["engineer", "researcher", "designer"],
 }));
+// after() needs the request-scoped AsyncLocalStorage that only exists when
+// Next's server actually handles the request — absent here since these
+// tests call POST directly. Stand in with a same-tick, un-awaited call:
+// close enough to "runs without blocking the response" for these tests.
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+  return { ...actual, after: (fn: () => unknown) => fn() };
+});
 
 interface AgentRecord {
   id: string;

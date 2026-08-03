@@ -1084,3 +1084,64 @@ manager's inbox — still stack exactly on top of each other).
 toward the proposal's later-phase scope (multi-business collaboration,
 a building overview) now that recruiters may already be looking at the
 repo and the portfolio case study.
+
+## 25. Hosting: Vercel, via `after()` instead of a new host or a job queue — done
+
+§24 framed hosting as a three-way fork: move to a long-lived-process
+host, build real queue infrastructure for Vercel, or deploy to Vercel
+and accept the fire-and-forget bug. The user wanted Vercel specifically
+— it already hosts the portfolio site with git-push auto-deploy, and
+matching that workflow mattered more than the theoretical simplicity of
+a different host. That preference turned "which host" into "how do we
+make Vercel correct," which turned out to have a real answer instead of
+a compromise.
+
+### `next/server`'s `after()` was the actual fix, not a workaround
+
+Next here is 16.2.12 — past this session's training data, so AGENTS.md's
+instruction to read `node_modules/next/dist/docs` before writing
+anything applied literally, not just as boilerplate advice. That's where
+`after()` turned up: stable since 15.1, it schedules a callback to run
+once the response is sent, and on Vercel it's backed by `waitUntil()`,
+which keeps the serverless invocation alive until the callback settles
+(bounded by `maxDuration`, not by nothing). That's a real fix for the
+documented failure mode, not a workaround for it — the promise no longer
+depends on the Node process staying alive after the response, which was
+the entire problem.
+
+### Checked the actual limit instead of assuming a stale one
+
+Vercel's Hobby plan used to cap functions around 10s, which would have
+made `after()` useless for anything but the shortest goals. That's no
+longer current: with fluid compute (default on) Hobby now gets up to
+300s, Pro/Enterprise up to 800s standard or 1800s under an extended-
+duration beta. `route.ts` sets `export const maxDuration = 300` —
+Hobby's ceiling — with a comment pointing at raising it if real
+orchestrations start approaching that on Pro.
+
+### The swap was two lines, but it broke the unit tests for a real reason
+
+`after()` reads request-scoped `AsyncLocalStorage` that only exists when
+Next's own server handles the request. `route.test.ts` calls `POST`
+directly, bypassing that machinery entirely, so `after()` threw
+"called outside a request scope" — not a bug in the change, a gap in
+how directly-invoked route handlers can be unit tested against it. Fixed
+by mocking `next/server`'s `after` to invoke its callback immediately,
+same-tick, un-awaited — close enough to "doesn't block the response" for
+what these tests assert, and it kept all three orchestration-kickoff
+tests meaningful instead of deleting their coverage.
+
+### What this didn't do
+
+Didn't add a second `DIRECT_URL` env var / Prisma `directUrl` for a
+pooled-vs-direct connection split — tried it, and it broke `prisma
+validate` immediately because every environment, including local dev,
+would then need both URLs set. A single pooled `DATABASE_URL` (Neon or
+Supabase) is enough for both runtime queries and one-off `prisma migrate
+deploy` runs; revisit only if that combination actually causes problems
+in practice. Didn't provision the Postgres instance, create the Vercel
+project, or set env vars in its dashboard — all of that needs the user's
+own accounts and is explicitly the user's action, not something to do on
+their behalf (see README's new "Deploy (Vercel)" section for the exact
+steps). Didn't touch the multi-agent-overlap bug or art fidelity — both
+still open from §24, unrelated to hosting.

@@ -1,9 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { persistAgentTransition } from "@/lib/server/agent-transitions";
 import { reset } from "@/lib/simulation/state-machine";
 import { runTaskOrchestration } from "./run-task-orchestration";
+
+// Hobby plan's ceiling; raise if the account is on Pro (up to 800s, or
+// 1800s under the extended-duration beta) and orchestrations start timing
+// out in practice.
+export const maxDuration = 300;
 
 export async function POST(
   request: Request,
@@ -87,19 +92,21 @@ export async function POST(
 
   const agentsByRole = new Map(business.agents.map((a) => [a.role, a]));
 
-  // Fire-and-forget: this only works because this is a long-lived
-  // next dev/next start Node process — nothing kills it after the response
-  // is sent, so this pending promise keeps running. A serverless deploy
-  // (e.g. Vercel) would need a real background-job system instead; that's
-  // a known, intentional gap for this local-dev-scoped milestone, not an
-  // oversight. A dev-server file-save mid-run can also abandon this promise
-  // entirely, leaving the Task stuck at "running" and its agents non-idle
-  // — the existing midRun 409 check above is what surfaces that if it
-  // happens, by design, not a bug.
-  void runTaskOrchestration(task.id, manager, agentsByRole, trimmedGoal).catch(
-    (error: unknown) => {
-      console.error("Unhandled task orchestration error", error);
-    },
+  // Runs after the response is sent, via next/server's after(). On Vercel
+  // this is backed by waitUntil(), which keeps the serverless invocation
+  // alive until the promise settles or maxDuration is hit — unlike a bare
+  // fire-and-forget promise, which only survived on a long-lived
+  // next dev/next start process and would be killed the instant a
+  // serverless function returned. A dev-server file-save mid-run can still
+  // abandon this, leaving the Task stuck at "running" and its agents
+  // non-idle — the existing midRun 409 check above is what surfaces that
+  // if it happens, by design, not a bug.
+  after(() =>
+    runTaskOrchestration(task.id, manager, agentsByRole, trimmedGoal).catch(
+      (error: unknown) => {
+        console.error("Unhandled task orchestration error", error);
+      },
+    ),
   );
 
   return NextResponse.json({ taskId: task.id }, { status: 202 });

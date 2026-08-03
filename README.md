@@ -98,6 +98,30 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000) and create an
 account.
 
+## Deploy (Vercel)
+
+Import the repo as a new Vercel project (Vercel auto-detects Next.js —
+no `vercel.json` needed) and it'll auto-deploy on every push to `main`,
+same as the portfolio site. Two things this needs beyond a local setup:
+
+- **A real Postgres instance** — local-only `DATABASE_URL` won't reach
+  from Vercel's servers. [Neon](https://neon.tech) or
+  [Supabase](https://supabase.com) both work; either way use the
+  **pooled** connection string they give you (Vercel's serverless
+  functions can run many concurrent invocations, each holding its own
+  Prisma connection — a pooler avoids exhausting Postgres's connection
+  limit). Run `npx prisma migrate deploy` against it once before the
+  first request hits it.
+- **The same five env vars** from the `.env` block above
+  (`DATABASE_URL`, `AUTH_SECRET`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`,
+  `TAVILY_API_KEY`), set in the Vercel project's Settings → Environment
+  Variables.
+
+Task orchestration keeps running after the response via `next/server`'s
+`after()`, which Vercel backs with `waitUntil()` — see the "Known
+limitations" note above and `docs/architecture.md` §24-25 for why that's
+enough to avoid a separate job queue.
+
 ## Quality checks
 
 ```bash
@@ -121,11 +145,11 @@ and creates its own test account (`e2e@example.com`) on first run.
 - Movement is linear interpolation between fixed coordinates, not
   pathfinding — fine for four agents and a handful of destinations, won't
   scale as-is to a busier office.
-- A task run executes fire-and-forget on the server, detached from the
-  request that started it — this relies on a long-lived Node process
-  (`next dev`/`next start`), not serverless. A production deploy (e.g.
-  Vercel) would need a real background-job system instead. Local dev
-  only, by design, for now.
+- A task run continues after the response via `next/server`'s `after()`,
+  which Vercel backs with `waitUntil()` — no separate job queue needed.
+  The route sets `maxDuration = 300` (Hobby's ceiling); raise it if
+  real orchestrations start approaching that on Pro. A dev-server
+  file-save mid-run can still abandon a run, same as before.
 - Vitest and Prisma are both pinned below their latest majors (Vitest
   `^2`, Prisma `^6`) because their newest versions require Node ≥20.19
   and this environment runs 20.12. Bump both once the Node version moves.
