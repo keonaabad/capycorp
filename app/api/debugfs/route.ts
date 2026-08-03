@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
+import { prisma } from "@/lib/prisma";
 
 function tryList(p: string) {
   try {
@@ -12,6 +13,15 @@ function tryList(p: string) {
 
 export async function GET() {
   const cwd = process.cwd();
+  let queryResult: unknown;
+  try {
+    queryResult = await prisma.$queryRaw`SELECT 1 as ok`;
+  } catch (e) {
+    queryResult = {
+      ERR: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
+    };
+  }
   return NextResponse.json({
     cwd,
     cwdListing: tryList(cwd),
@@ -20,5 +30,6 @@ export async function GET() {
     prismaListing: tryList(path.join(cwd, "lib", "generated", "prisma")),
     varTaskListing: tryList("/var/task"),
     varTaskLibGenerated: tryList("/var/task/lib/generated"),
+    queryResult,
   });
 }
