@@ -10,7 +10,7 @@ import {
   Text,
   Texture,
 } from "pixi.js";
-import type { AgentState } from "@/lib/simulation/state-machine";
+import { STATE_LABEL, type AgentState } from "@/lib/simulation/state-machine";
 import {
   OFFICE_HEIGHT,
   OFFICE_WIDTH,
@@ -64,20 +64,7 @@ function buildCapybaraTexture(agent: CapybaraSpec, frame: 0 | 1): Texture {
 }
 
 const MOVE_SPEED = 2.4; // px per frame at 60fps
-const STATE_LABEL: Record<AgentState, string> = {
-  idle: "idle",
-  assigned: "assigned",
-  walking_to_workstation: "heading to desk",
-  planning: "planning",
-  working: "working",
-  using_tool: "using a tool",
-  waiting: "waiting",
-  collaborating: "collaborating",
-  needs_approval: "needs approval",
-  completed: "completed",
-  failed: "failed",
-  paused: "paused",
-};
+const BODY_REST_Y = 14;
 
 interface SpriteRig {
   container: Container;
@@ -151,7 +138,7 @@ function buildCapybara(agent: CapybaraSpec): SpriteRig {
   const body = new Sprite(textures[0]);
   body.anchor.set(0.5, 1);
   body.scale.set(SPRITE_SCALE);
-  body.y = 14;
+  body.y = BODY_REST_Y;
 
   const label = new Text({
     text: agent.name,
@@ -318,6 +305,28 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
             rig.walkFrame = 0;
             rig.body.texture = rig.textures[0];
             rig.nextFrameSwapAt = 0;
+          }
+
+          // A small idle bob — only while genuinely idle (not just
+          // stationary; "working"/"using_tool" etc. also stop moving once
+          // at the desk, and should read as focused rather than fidgety).
+          // Bobs `body.y`, a child of `container`, not `container.y`
+          // itself — the movement math above reads `container.y` directly,
+          // so this can't drift the sprite's logical position.
+          if (!moving && rig.lastState === "idle") {
+            rig.body.y = BODY_REST_Y + Math.sin(now / 260) * 3;
+          } else if (rig.body.y !== BODY_REST_Y) {
+            rig.body.y = BODY_REST_Y;
+          }
+
+          // A slow, gentle sway (not a bounce — that's reserved for idle)
+          // for agents at rest after finishing their work. Rotates around
+          // the body's own anchor point (0.5, 1 — its feet), so it reads
+          // as a calm lean rather than a bob.
+          if (!moving && rig.lastState === "completed") {
+            rig.body.rotation = Math.sin(now / 550) * 0.06;
+          } else if (rig.body.rotation !== 0) {
+            rig.body.rotation = 0;
           }
 
           if (rig.flashUntil > now) {

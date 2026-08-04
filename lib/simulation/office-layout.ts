@@ -37,6 +37,29 @@ export const MEETING_TABLE_POSITION: OfficePoint = { x: 400, y: 280 };
  */
 export const MANAGER_INBOX_POSITION: OfficePoint = { x: 300, y: 170 };
 
+/**
+ * Fixed angle per role, used to spread agents that would otherwise
+ * converge on the exact same shared point (the meeting table, the
+ * manager's inbox). Role-based rather than a hash of the agent id: a
+ * business always has exactly one agent per role (the 4-role starter
+ * team), so this guarantees every agent present is a full 90° apart —
+ * maximum, collision-proof separation for up to 4 agents. An id-hash was
+ * tried first but two arbitrary ids can hash to nearby angles by chance,
+ * which defeats the point. Revisit this if a business ever gets more
+ * than one agent per role (the "dynamic office" roadmap item).
+ */
+const ROLE_ANGLE: Record<AgentRole, number> = {
+  manager: 0,
+  engineer: 90,
+  researcher: 180,
+  designer: 270,
+};
+
+export function roleOffset(role: AgentRole, radius: number): OfficePoint {
+  const angle = ROLE_ANGLE[role] * (Math.PI / 180);
+  return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+}
+
 export interface RoomRect {
   x: number;
   y: number;
@@ -124,7 +147,11 @@ export const DEMO_ROSTER: readonly { id: string; role: AgentRole }[] = [
  * rather than snapping to a new destination.
  */
 export function destinationForState(
-  agent: { idlePosition: OfficePoint; deskPosition: OfficePoint },
+  agent: {
+    role: AgentRole;
+    idlePosition: OfficePoint;
+    deskPosition: OfficePoint;
+  },
   state: Exclude<AgentState, "paused">,
 ): OfficePoint {
   switch (state) {
@@ -139,10 +166,20 @@ export function destinationForState(
     case "completed":
     case "failed":
       return agent.deskPosition;
-    case "collaborating":
-      return MEETING_TABLE_POSITION;
-    case "needs_approval":
-      return MANAGER_INBOX_POSITION;
+    case "collaborating": {
+      const offset = roleOffset(agent.role, 14);
+      return {
+        x: MEETING_TABLE_POSITION.x + offset.x,
+        y: MEETING_TABLE_POSITION.y + offset.y,
+      };
+    }
+    case "needs_approval": {
+      const offset = roleOffset(agent.role, 14);
+      return {
+        x: MANAGER_INBOX_POSITION.x + offset.x,
+        y: MANAGER_INBOX_POSITION.y + offset.y,
+      };
+    }
   }
 }
 

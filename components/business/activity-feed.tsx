@@ -1,5 +1,11 @@
 import { formatEventLabel } from "@/lib/events/format-event";
 import type { AgentEvent } from "@/lib/generated/prisma/client";
+import { ROLE_LAYOUT, type AgentRole } from "@/lib/simulation/office-layout";
+
+function accentHex(role: string): string | undefined {
+  const layout = ROLE_LAYOUT[role as AgentRole];
+  return layout ? `#${layout.accentColor.toString(16).padStart(6, "0")}` : undefined;
+}
 
 export interface ActivityFeedEvent {
   id: string;
@@ -53,11 +59,14 @@ export function ActivityFeed({
                 {event.createdAt.toLocaleTimeString()}
               </span>
               {event.agent ? (
-                <span className="shrink-0 font-mono text-xs text-ink">
+                <span
+                  className="shrink-0 font-mono text-xs font-semibold"
+                  style={{ color: accentHex(event.agent.role) }}
+                >
                   {event.agent.name}
                 </span>
               ) : null}
-              <span className="truncate text-ink/80" title={label}>
+              <span className="line-clamp-2 text-ink/80" title={label}>
                 {label}
               </span>
             </li>

@@ -15,6 +15,22 @@ export const AGENT_STATES = [
 
 export type AgentState = (typeof AGENT_STATES)[number];
 
+/** Human-readable label for each state — shared between the office canvas and any other UI that displays agent state. */
+export const STATE_LABEL: Record<AgentState, string> = {
+  idle: "idle",
+  assigned: "assigned",
+  walking_to_workstation: "heading to desk",
+  planning: "planning",
+  working: "working",
+  using_tool: "using a tool",
+  waiting: "waiting",
+  collaborating: "collaborating",
+  needs_approval: "needs approval",
+  completed: "completed",
+  failed: "failed",
+  paused: "paused",
+};
+
 export interface AgentRuntimeState {
   current: AgentState;
   /** State to return to on resume(); only set while current === "paused". */

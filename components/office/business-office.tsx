@@ -8,6 +8,7 @@ import {
   type BackendOfficeAdapter,
 } from "@/lib/simulation/adapter";
 import { TaskComposer } from "@/components/business/task-composer";
+import { AgentCardGrid } from "./agent-card-grid";
 import { AgentInspector } from "./agent-inspector";
 import { OfficeCanvas } from "./office-canvas";
 import {
@@ -181,6 +182,7 @@ export function BusinessOffice({
       </div>
 
       <aside className="hidden w-[360px] shrink-0 space-y-6 overflow-y-auto border-l border-border bg-sidebar p-4 lg:block">
+        <AgentCardGrid adapter={adapter} />
         <AgentInspector adapter={adapter} />
         <TaskResults results={taskResults} />
         <ArtifactList artifacts={artifacts} />

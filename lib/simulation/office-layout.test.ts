@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  MANAGER_INBOX_POSITION,
   MEETING_TABLE_POSITION,
   ROLE_LAYOUT,
   ROOM_DOOR_POSITION,
   destinationForState,
   pathTo,
+  roleOffset,
   zoneForState,
 } from "./office-layout";
 
@@ -38,7 +40,7 @@ describe("pathTo", () => {
     const path = pathTo(engineer, "engineer", "collaborating");
     expect(path).toEqual([
       ROOM_DOOR_POSITION.engineer,
-      MEETING_TABLE_POSITION,
+      destinationForState(engineer, "collaborating"),
     ]);
   });
 
@@ -63,5 +65,45 @@ describe("pathTo", () => {
   it("takes the manager directly to their own inbox without a hallway detour", () => {
     const path = pathTo(manager, "manager", "needs_approval");
     expect(path).toEqual([destinationForState(manager, "needs_approval")]);
+  });
+});
+
+describe("destinationForState overlap offset", () => {
+  it("gives every role a distinct point at the shared meeting table, at least 90 degrees apart", () => {
+    const points = (
+      ["manager", "engineer", "researcher", "designer"] as const
+    ).map((role) =>
+      destinationForState({ role, ...ROLE_LAYOUT[role] }, "collaborating"),
+    );
+    for (let i = 0; i < points.length; i++) {
+      for (let j = i + 1; j < points.length; j++) {
+        const dist = Math.hypot(
+          points[i].x - points[j].x,
+          points[i].y - points[j].y,
+        );
+        // Adjacent roles are 90 degrees apart on a 14px-radius circle —
+        // the minimum possible separation between any two of the four.
+        expect(dist).toBeGreaterThanOrEqual(14 * Math.SQRT2 - 0.01);
+      }
+    }
+    expect(points[0]).not.toEqual(MEETING_TABLE_POSITION);
+  });
+
+  it("gives every role a distinct point at the shared manager inbox", () => {
+    const a = destinationForState(manager, "needs_approval");
+    const b = destinationForState(engineer, "needs_approval");
+    expect(a).not.toEqual(b);
+    expect(a).not.toEqual(MANAGER_INBOX_POSITION);
+  });
+
+  it("is stable across repeated calls for the same agent (no flicker)", () => {
+    expect(destinationForState(engineer, "collaborating")).toEqual(
+      destinationForState(engineer, "collaborating"),
+    );
+  });
+
+  it("roleOffset stays within the requested radius", () => {
+    const offset = roleOffset("researcher", 14);
+    expect(Math.hypot(offset.x, offset.y)).toBeCloseTo(14, 5);
   });
 });
