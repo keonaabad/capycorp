@@ -7,6 +7,7 @@ import {
   playScript,
   type ScriptPlayerHandle,
 } from "@/lib/simulation/script-player";
+import { OFFICE_HEIGHT, OFFICE_WIDTH } from "@/lib/simulation/office-layout";
 import { OfficeCanvas } from "./office-canvas";
 import { AgentInspector } from "./agent-inspector";
 
@@ -33,7 +34,23 @@ export function OfficeDemoPreview() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[800px_1fr]">
-      <OfficeCanvas adapter={adapter} />
+      {/* OfficeCanvas's root is h-full/w-full with no aspect-ratio of its
+          own (components/office/office-canvas.tsx) — correct for the real
+          business page, where an ancestor flex chain gives it a real
+          height to fill. This grid never sets an explicit row height
+          (sized by content instead), and OfficeCanvas's own content is
+          entirely position:absolute so it contributes nothing to that
+          content height — h-full then resolves against nothing, and the
+          canvas collapsed to ~0px tall. A fixed height would fix lg+ (the
+          800px column) but distort mobile, where this cell's width isn't
+          fixed — aspect-ratio keeps it proportional at every width, same
+          as the pre-fill-fix behavior this call site relied on. */}
+      <div
+        className="w-full"
+        style={{ aspectRatio: `${OFFICE_WIDTH} / ${OFFICE_HEIGHT}` }}
+      >
+        <OfficeCanvas adapter={adapter} />
+      </div>
       <AgentInspector adapter={adapter} readOnly />
     </div>
   );
