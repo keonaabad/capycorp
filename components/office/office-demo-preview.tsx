@@ -34,7 +34,7 @@ export function OfficeDemoPreview() {
   return (
     <div className="grid gap-6 lg:grid-cols-[800px_1fr]">
       <OfficeCanvas adapter={adapter} />
-      <AgentInspector adapter={adapter} />
+      <AgentInspector adapter={adapter} readOnly />
     </div>
   );
 }

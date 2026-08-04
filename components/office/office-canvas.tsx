@@ -134,6 +134,13 @@ function buildCapybara(agent: CapybaraSpec): SpriteRig {
   });
   ring.visible = false;
 
+  // A flat contact shadow at the sprite's feet (y: 14, same anchor the
+  // body itself lands on) — grounds each capybara against the floor
+  // instead of it looking like it's floating over the pixel art.
+  const shadow = new Graphics()
+    .ellipse(0, 16, 17, 5)
+    .fill({ color: 0x000000, alpha: 0.28 });
+
   // Anchored at its own bottom edge so the sprite's feet land on `y: 14`,
   // matching the desk/table/inbox y-coordinates in office-layout.ts exactly
   // the way the old Graphics body's bottom edge (roundRect ending at +14) did.
@@ -183,7 +190,7 @@ function buildCapybara(agent: CapybaraSpec): SpriteRig {
   folderIcon.position.set(18, -2);
   folderIcon.visible = false;
 
-  container.addChild(ring, body, label, badge, stateBubble, folderIcon);
+  container.addChild(ring, shadow, body, label, badge, stateBubble, folderIcon);
 
   return {
     container,
@@ -246,10 +253,15 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
       // resolution — cheap and plenty crisp for pixel art — but the
       // canvas element itself is told to fill its (now responsive) host
       // div instead of sitting at a fixed pixel size, so it scales down
-      // on narrower viewports instead of overflowing them.
+      // on narrower viewports and up on wider ones instead of sitting at
+      // a fixed 800px regardless of how much room is actually available.
+      // image-rendering: pixelated keeps that upscaling crisp (nearest-
+      // neighbor) instead of the browser's default blurry bilinear scale
+      // — correct for pixel art either direction.
       app.canvas.style.width = "100%";
       app.canvas.style.height = "100%";
       app.canvas.style.display = "block";
+      app.canvas.style.imageRendering = "pixelated";
       host.appendChild(app.canvas);
 
       app.stage.addChild(buildOfficeScene());
@@ -371,9 +383,14 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
 
   return (
     <div
-      ref={hostRef}
-      className="w-full max-w-[800px] overflow-hidden rounded-lg border border-border"
+      className="relative w-full max-w-[1100px] overflow-hidden rounded-lg"
       style={{ aspectRatio: `${OFFICE_WIDTH} / ${OFFICE_HEIGHT}` }}
-    />
+    >
+      <div ref={hostRef} className="absolute inset-0" />
+      {/* A sibling overlay, not a shadow/border on the host div itself —
+          those would paint *behind* the canvas child and never show.
+          pointer-events-none so it doesn't block clicking capybaras. */}
+      <div className="pointer-events-none absolute inset-0 rounded-lg border border-border shadow-[inset_0_0_40px_rgba(0,0,0,0.35)]" />
+    </div>
   );
 }

@@ -161,7 +161,7 @@ export function BusinessOffice({
           // measuring getBoundingClientRect() before landing on 104px here.
           // Only compensate at lg+, where the aside is actually visible;
           // below that it's hidden and centering here is already correct.
-          className="flex flex-1 items-start justify-center overflow-y-auto p-6 lg:ml-[104px]"
+          className="flex flex-1 items-center justify-center overflow-y-auto p-6 lg:ml-[104px]"
         >
           <OfficeCanvas adapter={adapter} />
         </div>

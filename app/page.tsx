@@ -15,7 +15,10 @@ export default async function LandingPage() {
       <header className="border-b border-border">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-6 py-4">
           <span className="text-sm font-semibold text-ink">CapyCorp</span>
-          <Link href="/sign-in" className="text-sm text-muted hover:text-accent">
+          <Link
+            href="/sign-in"
+            className="text-sm text-muted hover:text-accent"
+          >
             Sign in
           </Link>
         </div>
@@ -30,11 +33,11 @@ export default async function LandingPage() {
             Build your own AI company and watch it work.
           </h1>
           <p className="max-w-xl text-base text-muted">
-            CapyCorp is a visual multi-agent orchestration platform. Give
-            your team a goal in plain language — a manager capybara plans
-            the work and hands it off to the rest of your office, and you
-            watch them research, design, and build in real time, driven by
-            real Claude calls, not a canned animation.
+            CapyCorp is a visual multi-agent orchestration platform. Give your
+            team a goal in plain language — a manager capybara plans the work
+            and hands it off to the rest of your office, and you watch them
+            research, design, and build in real time, driven by real Claude
+            calls, not a canned animation.
           </p>
           <div className="flex w-full flex-col items-center gap-3 pt-2">
             <WaitlistForm />
@@ -48,14 +51,18 @@ export default async function LandingPage() {
         </section>
 
         <section className="border-t border-border py-14">
-          <div className="mx-auto w-full max-w-5xl px-6">
+          {/* Wider than the hero's max-w-5xl: the demo grid is an 800px
+              canvas plus an info panel (components/office/office-demo-
+              preview.tsx) — inside max-w-5xl that panel had only ~150px,
+              too narrow to hold agent state text without clipping. */}
+          <div className="mx-auto w-full max-w-[1200px] px-6">
             <h2 className="mb-1 text-lg font-semibold">See it in action</h2>
-            <p className="mb-6 text-sm text-muted">
-              This is the real office simulation, running a scripted demo
-              task on a loop — a manager delegating research, design, and
-              engineering work, an agent using a real tool, and a final
-              approval, end to end. A live account gets its own office
-              backed by a real manager, engineer, researcher, and designer.
+            <p className="mb-6 max-w-2xl text-sm text-muted">
+              This is the real office simulation, running a scripted demo task
+              on a loop — a manager delegating research, design, and engineering
+              work, an agent using a real tool, and a final approval, end to
+              end. A live account gets its own office backed by a real manager,
+              engineer, researcher, and designer.
             </p>
             <OfficeDemoPreview />
           </div>

@@ -5,7 +5,17 @@ import {
   type OfficeEventAdapter,
 } from "@/lib/simulation/adapter";
 
-export function AgentInspector({ adapter }: { adapter: OfficeEventAdapter }) {
+export function AgentInspector({
+  adapter,
+  readOnly = false,
+}: {
+  adapter: OfficeEventAdapter;
+  /** Hides the dev-only task-override input — for anonymous-facing
+   * contexts (the landing page's demo preview) where, per that
+   * component's own intent, manual state control has no business being
+   * exposed. The real business page keeps it (default false). */
+  readOnly?: boolean;
+}) {
   const selectedAgentId = useOfficeSnapshot(
     adapter,
     (snapshot) => snapshot.selectedAgentId,
@@ -42,20 +52,22 @@ export function AgentInspector({ adapter }: { adapter: OfficeEventAdapter }) {
       >
         state: {runtime?.current}
       </p>
-      <p className="mt-2 text-sm text-ink/70">
+      <p className="mt-2 text-sm break-words text-ink/70">
         {runtime?.task ?? "No task assigned yet."}
       </p>
-      <label className="mt-3 block text-[11px] uppercase tracking-wide text-muted">
-        Set task (dev only)
-        <input
-          className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1 text-sm text-ink outline-none focus:border-accent"
-          value={runtime?.task ?? ""}
-          onChange={(event) =>
-            adapter.setAgentTask(selectedAgentId, event.target.value || null)
-          }
-          placeholder="e.g. Compare competitor pricing"
-        />
-      </label>
+      {readOnly ? null : (
+        <label className="mt-3 block text-[11px] uppercase tracking-wide text-muted">
+          Set task (dev only)
+          <input
+            className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1 text-sm text-ink outline-none focus:border-accent"
+            value={runtime?.task ?? ""}
+            onChange={(event) =>
+              adapter.setAgentTask(selectedAgentId, event.target.value || null)
+            }
+            placeholder="e.g. Compare competitor pricing"
+          />
+        </label>
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
 } from "@/lib/simulation/office-layout";
 
 const FLOOR = 0x352c22;
+const FLOOR_ALT = 0x3a3025;
 const FLOOR_BORDER = 0x463a2c;
 const WALL = 0x6b5638;
 const WALL_TRIM = 0x2e2419;
@@ -140,6 +141,25 @@ function buildRug(x: number, y: number, width: number, height: number) {
     .stroke({ color: RUG_BORDER, width: 2 });
 }
 
+/** Alternating horizontal planks instead of one flat fill — cheap texture, same vector-graphics approach as everything else here. */
+function buildFloor(): Graphics {
+  const g = new Graphics().rect(0, 0, OFFICE_WIDTH, OFFICE_HEIGHT).fill({
+    color: FLOOR,
+  });
+  const plankHeight = 40;
+  for (let y = 0; y < OFFICE_HEIGHT; y += plankHeight) {
+    if ((y / plankHeight) % 2 === 1) {
+      g.rect(0, y, OFFICE_WIDTH, plankHeight).fill({ color: FLOOR_ALT });
+    }
+    g.rect(0, y, OFFICE_WIDTH, 1).fill({ color: FLOOR_BORDER, alpha: 0.4 });
+  }
+  g.rect(4, 4, OFFICE_WIDTH - 8, OFFICE_HEIGHT - 8).stroke({
+    color: FLOOR_BORDER,
+    width: 2,
+  });
+  return g;
+}
+
 function buildMeetingTable(): Graphics {
   return new Graphics()
     .roundRect(
@@ -204,12 +224,7 @@ function buildCenterDividers(): Graphics[] {
 export function buildOfficeScene(): Container {
   const container = new Container();
 
-  const floor = new Graphics()
-    .rect(0, 0, OFFICE_WIDTH, OFFICE_HEIGHT)
-    .fill({ color: FLOOR })
-    .rect(4, 4, OFFICE_WIDTH - 8, OFFICE_HEIGHT - 8)
-    .stroke({ color: FLOOR_BORDER, width: 2 });
-  container.addChild(floor);
+  container.addChild(buildFloor());
 
   container.addChild(
     buildRug(MEETING_TABLE_POSITION.x, MEETING_TABLE_POSITION.y, 160, 90),
