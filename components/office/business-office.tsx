@@ -152,19 +152,16 @@ export function BusinessOffice({
           <h1 className="text-sm font-semibold text-ink">{businessName}</h1>
         </header>
         <div
-          // The right rail (360px) is wider than the left sidebar (256px,
-          // components/chrome/sidebar.tsx), so naive centering within this
-          // column sits 52px left of true screen-center — (360-256)/2.
-          // Margin-left on a flex-grow item only moves its visual center by
-          // *half* the margin (the item's own width shrinks to absorb the
-          // rest, pulling the center back by the other half) — verified by
-          // measuring getBoundingClientRect() before landing on 104px here.
-          // Only compensate at lg+, where the aside is actually visible;
-          // below that it's hidden and centering here is already correct.
-          // OfficeCanvas fills this box exactly (h-full w-full, no
-          // aspect-ratio letterboxing) — overflow-hidden as a safety net,
-          // not because scrolling is expected in normal use.
-          className="flex flex-1 overflow-hidden p-6 lg:ml-[104px]"
+          // No padding, no centering margin: OfficeCanvas fills this box
+          // exactly (h-full w-full, no aspect-ratio letterboxing), and
+          // this box is meant to span the same width as the header and
+          // composer above/below it — the old lg:ml-[104px] compensation
+          // (for centering a small *floating* box on true screen-center,
+          // back when the office was capped well under the available
+          // width) would now just eat width from one side and make this
+          // panel narrower than the header/composer bars it sits between.
+          // overflow-hidden is a safety net, not an expected scroll case.
+          className="flex flex-1 overflow-hidden"
         >
           <OfficeCanvas adapter={adapter} />
         </div>
