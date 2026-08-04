@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { persistAgentTransition } from "@/lib/server/agent-transitions";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 import { reset } from "@/lib/simulation/state-machine";
 import { runTaskOrchestration } from "./run-task-orchestration";
 
@@ -14,19 +15,37 @@ export async function POST(
   request: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
+  const startedAt = Date.now();
+  const { id: businessId } = await ctx.params;
+  // The business lookup doesn't depend on the session value — ownership
+  // is checked below by comparing business.userId — so this runs
+  // alongside auth() instead of after it.
+  const [session, business] = await Promise.all([
+    auth(),
+    prisma.business.findUnique({
+      where: { id: businessId },
+      include: { agents: true },
+    }),
+  ]);
+  console.error(`[timing] tasks: auth+business lookup took ${Date.now() - startedAt}ms`);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const { id: businessId } = await ctx.params;
-  const business = await prisma.business.findUnique({
-    where: { id: businessId },
-    include: { agents: true },
-  });
   // 404 (not 403) for both "doesn't exist" and "exists but not yours".
   if (!business || business.userId !== session.user.id) {
     return NextResponse.json({ error: "Business not found." }, { status: 404 });
+  }
+
+  const allowed = await checkRateLimit(`task:${session.user.id}`, {
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many tasks submitted — try again later." },
+      { status: 429 },
+    );
   }
 
   const body: unknown = await request.json().catch(() => null);
@@ -62,21 +81,25 @@ export async function POST(
   // agentRow in place after persisting — `manager`/`agentsByRole` below are
   // built from these same object references, and runTaskOrchestration
   // needs their *current* state, not the stale pre-reset snapshot (a stale
-  // "completed" here would make its first real transition illegal).
-  for (const agentRow of business.agents) {
-    if (agentRow.state === "idle") continue;
-    const result = reset({
-      current: agentRow.state,
-      resumeState: agentRow.resumeState,
-    });
-    if (result.ok) {
-      await prisma.$transaction((tx) =>
-        persistAgentTransition(tx, agentRow, agentRow.state, result.state),
-      );
-      agentRow.state = result.state.current;
-      agentRow.resumeState = result.state.resumeState;
+  // "completed" here would make its first real transition illegal). One
+  // transaction for the whole loop rather than one per agent — up to 4
+  // round trips down to 1.
+  const resetStartedAt = Date.now();
+  await prisma.$transaction(async (tx) => {
+    for (const agentRow of business.agents) {
+      if (agentRow.state === "idle") continue;
+      const result = reset({
+        current: agentRow.state,
+        resumeState: agentRow.resumeState,
+      });
+      if (result.ok) {
+        await persistAgentTransition(tx, agentRow, agentRow.state, result.state);
+        agentRow.state = result.state.current;
+        agentRow.resumeState = result.state.resumeState;
+      }
     }
-  }
+  });
+  console.error(`[timing] tasks: reset transaction took ${Date.now() - resetStartedAt}ms`);
 
   const title =
     trimmedGoal.length > 80 ? `${trimmedGoal.slice(0, 77)}...` : trimmedGoal;

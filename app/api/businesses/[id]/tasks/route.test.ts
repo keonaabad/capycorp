@@ -92,6 +92,10 @@ function createPrismaMock(agents: AgentRecord[]) {
         return Promise.resolve({ id: `task-${taskSeq}`, ...args.data });
       }),
     },
+    rateLimitHit: {
+      count: vi.fn().mockResolvedValue(0),
+      create: vi.fn().mockResolvedValue({}),
+    },
   };
 
   return { prisma, agentMap };
@@ -248,6 +252,24 @@ describe("POST /api/businesses/[id]/tasks", () => {
       ctx,
     );
     expect(response.status).toBe(409);
+    expect(runTaskOrchestrationMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 once the rate limit is hit", async () => {
+    const agents = makeAgents("biz-1");
+    currentPrismaMock = createPrismaMock(agents);
+    currentPrismaMock.prisma.rateLimitHit.count.mockResolvedValue(10);
+    businessFindUniqueMock.mockResolvedValue({
+      id: "biz-1",
+      userId: "user-1",
+      agents,
+    });
+
+    const response = await POST(
+      makeRequest({ goal: "Ship a pricing page" }),
+      ctx,
+    );
+    expect(response.status).toBe(429);
     expect(runTaskOrchestrationMock).not.toHaveBeenCalled();
   });
 });

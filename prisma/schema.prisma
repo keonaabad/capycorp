@@ -182,3 +182,16 @@ model WaitlistEntry {
   email     String   @unique
   createdAt DateTime @default(now())
 }
+
+// Fixed-window rate limiting for unauthenticated/cost-sensitive POST
+// endpoints (waitlist signup, task submission, registration). One row per
+// request that passed the check; checkRateLimit (lib/server/rate-limit.ts)
+// counts rows for a key within the window rather than maintaining a
+// running counter, so no separate reset/decay logic is needed.
+model RateLimitHit {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+}
