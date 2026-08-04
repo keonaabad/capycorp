@@ -29,6 +29,9 @@ const PLANT_POT = 0x6b4a34;
 const PLANT_LEAF = 0x4f7a4a;
 const CANVAS_CREAM = 0xede6d6;
 const BOOK_COLORS = [0x8a5a44, 0x3f7d58, 0xb5563c, 0x2b3a67, 0xc89a3c];
+const SHADOW = 0x000000;
+const WINDOW_SKY = 0x6b8fa3;
+const WINDOW_FRAME = 0x2e2419;
 
 const ROLES: readonly AgentRole[] = [
   "manager",
@@ -54,6 +57,8 @@ function vWall(y1: number, y2: number, x: number, thickness = WALL_THICKNESS) {
 
 function buildDesk(x: number, y: number): Graphics {
   return new Graphics()
+    .ellipse(x, y + 20, 28, 6)
+    .fill({ color: SHADOW, alpha: 0.22 })
     .roundRect(x - 26, y - 16, 52, 32, 4)
     .fill({ color: WOOD })
     .stroke({ color: WOOD_DARK, width: 2 });
@@ -70,6 +75,8 @@ function buildMonitor(x: number, y: number): Graphics {
 
 function buildBookshelf(x: number, y: number, rows = 2): Graphics {
   const g = new Graphics()
+    .ellipse(x, y + 36, 32, 6)
+    .fill({ color: SHADOW, alpha: 0.22 })
     .roundRect(x - 30, y - 34, 60, 68, 3)
     .fill({ color: WOOD })
     .stroke({ color: WOOD_DARK, width: 2 });
@@ -91,6 +98,8 @@ function buildBookshelf(x: number, y: number, rows = 2): Graphics {
 
 function buildServerRack(x: number, y: number): Graphics {
   const g = new Graphics()
+    .ellipse(x, y + 36, 20, 6)
+    .fill({ color: SHADOW, alpha: 0.22 })
     .roundRect(x - 16, y - 34, 32, 68, 2)
     .fill({ color: 0x24211c })
     .stroke({ color: WOOD_DARK, width: 2 });
@@ -105,6 +114,8 @@ function buildServerRack(x: number, y: number): Graphics {
 
 function buildEasel(x: number, y: number, accent: number): Graphics {
   return new Graphics()
+    .ellipse(x, y + 21, 16, 5)
+    .fill({ color: SHADOW, alpha: 0.22 })
     .rect(x - 2, y - 30, 4, 50)
     .fill({ color: WOOD })
     .roundRect(x - 22, y - 34, 44, 32, 2)
@@ -116,6 +127,8 @@ function buildEasel(x: number, y: number, accent: number): Graphics {
 
 function buildPlant(x: number, y: number): Graphics {
   return new Graphics()
+    .ellipse(x, y + 11, 15, 4)
+    .fill({ color: SHADOW, alpha: 0.22 })
     .roundRect(x - 12, y - 6, 24, 16, 3)
     .fill({ color: PLANT_POT })
     .stroke({ color: WOOD_DARK, width: 2 })
@@ -162,6 +175,8 @@ function buildFloor(): Graphics {
 
 function buildMeetingTable(): Graphics {
   return new Graphics()
+    .ellipse(MEETING_TABLE_POSITION.x, MEETING_TABLE_POSITION.y + 24, 44, 7)
+    .fill({ color: SHADOW, alpha: 0.22 })
     .roundRect(
       MEETING_TABLE_POSITION.x - 40,
       MEETING_TABLE_POSITION.y - 20,
@@ -171,6 +186,20 @@ function buildMeetingTable(): Graphics {
     )
     .fill({ color: 0x3c3122 })
     .stroke({ color: WOOD_DARK, width: 2 });
+}
+
+/** A small "window" set into an outer wall — light glass fill, cross mullion, and a frame — to break up flat wall color and read as a real space rather than a bare box. */
+function buildWindow(x: number, y: number): Graphics {
+  const w = 46;
+  const h = 16;
+  return new Graphics()
+    .roundRect(x - w / 2, y - h / 2, w, h, 2)
+    .fill({ color: WINDOW_SKY, alpha: 0.85 })
+    .stroke({ color: WINDOW_FRAME, width: 2 })
+    .rect(x - 1, y - h / 2, 2, h)
+    .fill({ color: WINDOW_FRAME })
+    .rect(x - w / 2, y - 1, w, 2)
+    .fill({ color: WINDOW_FRAME });
 }
 
 /**
@@ -238,6 +267,30 @@ export function buildOfficeScene(): Container {
     container.addChild(buildDesk(desk.x, desk.y));
   }
   for (const wall of buildCenterDividers()) container.addChild(wall);
+
+  // One window per room, centered on whichever wall faces the building's
+  // exterior (top row's top edge, bottom row's bottom edge) rather than
+  // the hallway — that edge has no door gap to collide with, and it's
+  // the one wall segment plain flat color made the whole scene feel
+  // boxed-in rather than like a real space.
+  container.addChild(
+    buildWindow(ROOM_RECT.manager.x + 190, ROOM_RECT.manager.y),
+  );
+  container.addChild(
+    buildWindow(ROOM_RECT.engineer.x + 190, ROOM_RECT.engineer.y),
+  );
+  container.addChild(
+    buildWindow(
+      ROOM_RECT.designer.x + 190,
+      ROOM_RECT.designer.y + ROOM_RECT.designer.height,
+    ),
+  );
+  container.addChild(
+    buildWindow(
+      ROOM_RECT.researcher.x + 190,
+      ROOM_RECT.researcher.y + ROOM_RECT.researcher.height,
+    ),
+  );
 
   container.addChild(
     buildInboxTray(MANAGER_INBOX_POSITION.x, MANAGER_INBOX_POSITION.y),

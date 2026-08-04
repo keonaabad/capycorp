@@ -382,10 +382,13 @@ export function OfficeCanvas({ adapter }: { adapter: OfficeEventAdapter }) {
   }, [adapter]);
 
   return (
-    <div
-      className="relative w-full max-w-[1100px] overflow-hidden rounded-lg"
-      style={{ aspectRatio: `${OFFICE_WIDTH} / ${OFFICE_HEIGHT}` }}
-    >
+    // No aspect-ratio lock: the parent (business-office.tsx) hands this a
+    // real h-full/w-full box between the header and the composer, and this
+    // fills it exactly rather than letterboxing to the scene's native
+    // 800x560 ratio — some non-uniform stretch on whatever the actual box
+    // shape is, traded deliberately for actually filling the space asked
+    // for instead of floating in the middle of it with empty margins.
+    <div className="relative h-full w-full overflow-hidden rounded-lg">
       <div ref={hostRef} className="absolute inset-0" />
       {/* A sibling overlay, not a shadow/border on the host div itself —
           those would paint *behind* the canvas child and never show.
